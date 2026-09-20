@@ -31,11 +31,11 @@ final class CursorAPITests: XCTestCase {
         let lock = NSLock()
         var requestedPages: [Int] = []
         MockURLProtocol.requestHandler = { request in
-            let body = try XCTUnwrap(request.httpBody)
+            let body = try XCTUnwrap(Self.requestBody(request))
             let json = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: body) as? [String: Any]
             )
-            let page = try XCTUnwrap(json["page"] as? Int)
+            let page = try XCTUnwrap((json["page"] as? NSNumber)?.intValue)
             lock.lock()
             requestedPages.append(page)
             lock.unlock()
@@ -91,6 +91,24 @@ final class CursorAPITests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("Fixtures")
             .appendingPathComponent(name)
+    }
+
+    private static func requestBody(_ request: URLRequest) -> Data? {
+        if let body = request.httpBody {
+            return body
+        }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
+        defer { buffer.deallocate() }
+        while stream.hasBytesAvailable {
+            let count = stream.read(buffer, maxLength: 1024)
+            guard count > 0 else { break }
+            data.append(buffer, count: count)
+        }
+        return data.isEmpty ? nil : data
     }
 
     private static func response(status: Int, url: URL) -> HTTPURLResponse {
