@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import SQLite3
 
-struct AgentNeedingInput: Identifiable {
+struct AgentNeedingInput: Identifiable, Sendable {
     let id: String
     let name: String
     let reason: String
@@ -52,14 +52,15 @@ final class AgentMonitor: ObservableObject {
 
     /// Activity within this window counts as "running". The IDE flushes agent state to disk
     /// on message boundaries, typically every 1-3 minutes during active work.
-    private static let activityWindow: TimeInterval = 4 * 60
+    nonisolated private static let activityWindow: TimeInterval = 4 * 60
     /// Blocking tool approvals are only considered when the composer was active recently.
-    private static let blockingActionWindow: TimeInterval = 30 * 60
+    nonisolated private static let blockingActionWindow: TimeInterval = 30 * 60
     /// Pending plans must have registry or composer activity within this window.
-    private static let pendingPlanWindow: TimeInterval = 7 * 24 * 60 * 60
+    nonisolated private static let pendingPlanWindow: TimeInterval = 7 * 24 * 60 * 60
     private static let pollInterval: TimeInterval = 15
 
     private var timer: Timer?
+    private var refreshTask: Task<Void, Never>?
 
     init() {
         refresh()
@@ -73,18 +74,23 @@ final class AgentMonitor: ObservableObject {
     }
 
     func refresh() {
-        let snapshot = Self.readDatabaseSnapshot()
-        let transcriptIDs = Self.activeLocalTranscriptIDs()
-
-        localRunningCount = transcriptIDs.union(snapshot.activeLocalComposerIDs).count
-        cloudRunningCount = snapshot.cloudRunning
-        agentsNeedingInput = snapshot.agentsNeedingInput
+        guard refreshTask == nil else { return }
+        refreshTask = Task {
+            let result = await Task.detached(priority: .utility) {
+                Self.readMonitorSnapshot()
+            }.value
+            defer { refreshTask = nil }
+            guard !Task.isCancelled else { return }
+            localRunningCount = result.localRunning
+            cloudRunningCount = result.cloudRunning
+            agentsNeedingInput = result.agentsNeedingInput
+        }
     }
 
     // MARK: - Local transcripts
 
     /// Session IDs (composer IDs) whose transcript was written to recently.
-    private static func activeLocalTranscriptIDs() -> Set<String> {
+    nonisolated private static func activeLocalTranscriptIDs() -> Set<String> {
         let projectsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cursor/projects")
         let fileManager = FileManager.default
@@ -133,13 +139,29 @@ final class AgentMonitor: ObservableObject {
 
     // MARK: - state.vscdb (composers + cloud agents)
 
-    private struct DatabaseSnapshot {
+    private struct DatabaseSnapshot: Sendable {
         var activeLocalComposerIDs: Set<String> = []
         var cloudRunning = 0
         var agentsNeedingInput: [AgentNeedingInput] = []
     }
 
-    private static func readDatabaseSnapshot() -> DatabaseSnapshot {
+    private struct MonitorSnapshot: Sendable {
+        let localRunning: Int
+        let cloudRunning: Int
+        let agentsNeedingInput: [AgentNeedingInput]
+    }
+
+    nonisolated private static func readMonitorSnapshot() -> MonitorSnapshot {
+        let database = readDatabaseSnapshot()
+        let transcripts = activeLocalTranscriptIDs()
+        return MonitorSnapshot(
+            localRunning: transcripts.union(database.activeLocalComposerIDs).count,
+            cloudRunning: database.cloudRunning,
+            agentsNeedingInput: database.agentsNeedingInput
+        )
+    }
+
+    nonisolated private static func readDatabaseSnapshot() -> DatabaseSnapshot {
         var snapshot = DatabaseSnapshot()
 
         var database: OpaquePointer?
@@ -168,7 +190,7 @@ final class AgentMonitor: ObservableObject {
         return snapshot
     }
 
-    private static func readItem(database: OpaquePointer?, key: String) -> Data? {
+    nonisolated private static func readItem(database: OpaquePointer?, key: String) -> Data? {
         let query = "SELECT value FROM ItemTable WHERE key = ?"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK else {
@@ -185,7 +207,7 @@ final class AgentMonitor: ObservableObject {
         return String(cString: cString).data(using: .utf8)
     }
 
-    private static func countRunningCloudAgents(data: Data) -> Int {
+    nonisolated static func countRunningCloudAgents(data: Data) -> Int {
         guard let agents = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return 0
         }
@@ -200,7 +222,7 @@ final class AgentMonitor: ObservableObject {
         }.count
     }
 
-    private static func applyComposerHeaders(
+    nonisolated private static func applyComposerHeaders(
         data: Data,
         planRegistry: [String: Any],
         to snapshot: inout DatabaseSnapshot
@@ -251,7 +273,7 @@ final class AgentMonitor: ObservableObject {
         }
     }
 
-    private static func composerDisplayName(from composer: [String: Any]) -> String {
+    nonisolated private static func composerDisplayName(from composer: [String: Any]) -> String {
         if let raw = composer["name"] as? String {
             let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !name.isEmpty {
@@ -261,7 +283,7 @@ final class AgentMonitor: ObservableObject {
         return "Untitled agent"
     }
 
-    private static func composerNeedsInputReason(
+    nonisolated private static func composerNeedsInputReason(
         composer: [String: Any],
         composerID: String,
         planRegistry: [String: Any],
@@ -290,7 +312,7 @@ final class AgentMonitor: ObservableObject {
         return nil
     }
 
-    private static func pendingPlanName(
+    nonisolated private static func pendingPlanName(
         forComposerID composerID: String,
         in planRegistry: [String: Any],
         pendingPlanCutoff: Double,
@@ -320,12 +342,12 @@ final class AgentMonitor: ObservableObject {
         return newestName
     }
 
-    private static func planEntryIsUnbuilt(_ entry: [String: Any]) -> Bool {
+    nonisolated private static func planEntryIsUnbuilt(_ entry: [String: Any]) -> Bool {
         guard let builtBy = entry["builtBy"] as? [String: Any] else { return true }
         return builtBy.isEmpty
     }
 
-    private static func linkedComposerIDs(from entry: [String: Any]) -> Set<String> {
+    nonisolated private static func linkedComposerIDs(from entry: [String: Any]) -> Set<String> {
         var ids: Set<String> = []
         if let createdBy = entry["createdBy"] as? String {
             ids.insert(createdBy)
@@ -339,7 +361,7 @@ final class AgentMonitor: ObservableObject {
         return ids
     }
 
-    private static func planEntry(_ entry: [String: Any], referencesComposerID composerID: String) -> Bool {
+    nonisolated private static func planEntry(_ entry: [String: Any], referencesComposerID composerID: String) -> Bool {
         linkedComposerIDs(from: entry).contains(composerID)
     }
 }

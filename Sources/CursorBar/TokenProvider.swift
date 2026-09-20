@@ -56,7 +56,7 @@ enum TokenProvider {
         return SessionCredentials(cookieValue: cookieValue)
     }
 
-    private static func extractUserID(from jwt: String) throws -> String {
+    static func extractUserID(from jwt: String) throws -> String {
         let parts = jwt.split(separator: ".")
         guard parts.count >= 2 else {
             throw TokenProviderError.invalidToken

@@ -2,39 +2,28 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-}"
+DIST="${1:-${DIST_DIR:-$ROOT/dist}}"
+VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$ROOT/Resources/Info.plist")"
+ARCHIVE_ARCH="${ARCHIVE_ARCH:-$(uname -m)}"
+APP="$ROOT/CursorBar.app"
+ARCHIVE="$DIST/CursorBar-$VERSION-macOS-$ARCHIVE_ARCH.zip"
 
-if [[ -z "$VERSION" ]]; then
-    echo "Usage: bash scripts/release.sh VERSION" >&2
-    echo "Example: bash scripts/release.sh 1.0.0" >&2
+if [[ -n "${GITHUB_REF_NAME:-}" && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+    echo "error: tag $GITHUB_REF_NAME does not match app version v$VERSION" >&2
     exit 1
 fi
 
-TAG="v${VERSION}"
-ZIP="$ROOT/CursorBar-${VERSION}.zip"
+mkdir -p "$DIST"
+"$ROOT/scripts/check_contracts.sh"
+swift test --package-path "$ROOT"
+"$ROOT/scripts/package.sh"
+"$ROOT/scripts/verify_app.sh" "$APP"
 
-cd "$ROOT"
+rm -f "$ARCHIVE"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$ARCHIVE"
+(
+    cd "$(dirname "$ARCHIVE")"
+    shasum -a 256 "$(basename "$ARCHIVE")"
+) | tee "$ARCHIVE.sha256"
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "Working tree is not clean. Commit or stash changes first." >&2
-    exit 1
-fi
-
-echo "Building CursorBar ${VERSION}..."
-VERSION="$VERSION" bash scripts/package.sh
-
-echo "Creating ${ZIP}..."
-rm -f "$ZIP"
-ditto -c -k --sequesterRsrc --keepParent CursorBar.app "$ZIP"
-shasum -a 256 "$ZIP"
-
-echo "Tagging ${TAG}..."
-git tag -a "$TAG" -m "Release ${TAG}"
-
-echo
-echo "Next steps:"
-echo "  git push origin main"
-echo "  git push origin ${TAG}"
-echo
-echo "Or publish locally:"
-echo "  gh release create ${TAG} ${ZIP} --title ${TAG} --generate-notes"
+echo "Release archive: $ARCHIVE"

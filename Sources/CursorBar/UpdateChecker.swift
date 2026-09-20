@@ -1,54 +1,50 @@
-import AppKit
 import Foundation
+import AppKit
 
 enum UpdateError: Error, LocalizedError {
     case requestFailed
-    case noAsset
-    case badArchive
-    case notInstalledAsApp
-    case processFailed
+    case invalidRelease
 
     var errorDescription: String? {
         switch self {
         case .requestFailed:
             "Could not reach GitHub."
-        case .noAsset:
-            "No download found in the latest release."
-        case .badArchive:
-            "Downloaded archive did not contain CursorBar.app."
-        case .notInstalledAsApp:
-            "CursorBar is not running from an app bundle."
-        case .processFailed:
-            "Update helper command failed."
+        case .invalidRelease:
+            "GitHub returned an invalid release."
         }
     }
 }
 
 @MainActor
 final class UpdateChecker: ObservableObject {
-    struct Release {
+    struct Release: Equatable {
         let version: String
-        let zipURL: URL
+        let pageURL: URL
     }
 
     @Published private(set) var availableUpdate: Release?
     @Published private(set) var isChecking = false
-    @Published private(set) var isUpdating = false
     @Published private(set) var statusMessage: String?
 
-    static let currentVersion: String =
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    static var currentVersion: String { AppIdentity.version }
 
-    private static let latestReleaseURL =
-        URL(string: "https://api.github.com/repos/c-johannesen/cursorbar/releases/latest")!
+    private let session: URLSession
+    private let endpoint: URL
+    private let installedVersion: String
 
-    init() {
-        Task { await checkForUpdates(announceResult: false) }
+    init(
+        session: URLSession = SecureNetworkSession.make(),
+        endpoint: URL = AppIdentity.latestReleaseAPIURL,
+        installedVersion: String = AppIdentity.version
+    ) {
+        self.session = session
+        self.endpoint = endpoint
+        self.installedVersion = installedVersion
     }
 
     /// - Parameter announceResult: when true (manual check), also report "up to date" and failures.
     func checkForUpdates(announceResult: Bool) async {
-        guard !isChecking, !isUpdating else { return }
+        guard !isChecking else { return }
         isChecking = true
         if announceResult {
             statusMessage = nil
@@ -56,11 +52,15 @@ final class UpdateChecker: ObservableObject {
         defer { isChecking = false }
 
         do {
-            var request = URLRequest(url: Self.latestReleaseURL)
+            guard endpoint == AppIdentity.latestReleaseAPIURL else {
+                throw UpdateError.requestFailed
+            }
+            var request = URLRequest(url: endpoint)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("CursorBar/\(installedVersion)", forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 throw UpdateError.requestFailed
             }
 
@@ -69,18 +69,18 @@ final class UpdateChecker: ObservableObject {
                 ? String(release.tagName.dropFirst())
                 : release.tagName
 
-            guard let asset = release.assets.first(where: { $0.name.hasSuffix(".zip") }),
-                  let zipURL = URL(string: asset.browserDownloadURL)
-            else {
-                throw UpdateError.noAsset
-            }
+            guard release.htmlURL.scheme == "https",
+                  release.htmlURL.host == AppIdentity.repositoryURL.host,
+                  release.htmlURL.path.hasPrefix("/smallyunet/cursorbar/releases/")
+            else { throw UpdateError.invalidRelease }
 
-            if Self.isVersion(latestVersion, newerThan: Self.currentVersion) {
-                availableUpdate = Release(version: latestVersion, zipURL: zipURL)
+            if Self.isVersion(latestVersion, newerThan: installedVersion) {
+                availableUpdate = Release(version: latestVersion, pageURL: release.htmlURL)
+                statusMessage = nil
             } else {
                 availableUpdate = nil
                 if announceResult {
-                    statusMessage = "Up to date (v\(Self.currentVersion))"
+                    statusMessage = "Up to date (v\(installedVersion))"
                 }
             }
         } catch {
@@ -90,89 +90,38 @@ final class UpdateChecker: ObservableObject {
         }
     }
 
-    func installUpdate() async {
-        guard let update = availableUpdate, !isUpdating else { return }
-        isUpdating = true
-        statusMessage = "Downloading v\(update.version)…"
-
-        do {
-            let bundleURL = Bundle.main.bundleURL
-            guard bundleURL.pathExtension == "app" else {
-                throw UpdateError.notInstalledAsApp
-            }
-
-            let (tempZip, _) = try await URLSession.shared.download(from: update.zipURL)
-            let extractDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("cursorbar-update-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: extractDir) }
-
-            try await Self.runProcess("/usr/bin/ditto", ["-x", "-k", tempZip.path, extractDir.path])
-
-            let newApp = extractDir.appendingPathComponent("CursorBar.app")
-            guard FileManager.default.fileExists(atPath: newApp.path) else {
-                throw UpdateError.badArchive
-            }
-
-            statusMessage = "Installing…"
-            try? await Self.runProcess("/usr/bin/xattr", ["-cr", newApp.path])
-            try FileManager.default.removeItem(at: bundleURL)
-            try FileManager.default.copyItem(at: newApp, to: bundleURL)
-
-            statusMessage = "Relaunching…"
-            try await Self.runProcess("/usr/bin/open", ["-n", bundleURL.path])
-            NSApplication.shared.terminate(nil)
-        } catch {
-            isUpdating = false
-            statusMessage = "Update failed: \(error.localizedDescription)"
-        }
+    func openAvailableRelease() {
+        guard let release = availableUpdate else { return }
+        NSWorkspace.shared.open(release.pageURL)
     }
 
     static func isVersion(_ candidate: String, newerThan current: String) -> Bool {
-        let lhs = candidate.split(separator: ".").map { Int($0) ?? 0 }
-        let rhs = current.split(separator: ".").map { Int($0) ?? 0 }
-        for index in 0..<max(lhs.count, rhs.count) {
-            let a = index < lhs.count ? lhs[index] : 0
-            let b = index < rhs.count ? rhs[index] : 0
-            if a != b {
-                return a > b
-            }
+        guard let lhs = versionComponents(candidate),
+              let rhs = versionComponents(current) else {
+            return false
         }
-        return false
+        return lhs.lexicographicallyPrecedes(rhs) == false && lhs != rhs
     }
 
-    private static func runProcess(_ executable: String, _ arguments: [String]) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        try process.run()
-
-        await withCheckedContinuation { continuation in
-            process.terminationHandler = { _ in continuation.resume() }
-        }
-
-        guard process.terminationStatus == 0 else {
-            throw UpdateError.processFailed
-        }
+    private static func versionComponents(_ value: String) -> [Int]? {
+        let normalized = value.hasPrefix("v") || value.hasPrefix("V")
+            ? String(value.dropFirst())
+            : value
+        let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) })
+        else { return nil }
+        let components = parts.compactMap { Int($0) }
+        return components.count == 3 ? components : nil
     }
 }
 
 private struct GitHubRelease: Decodable {
     let tagName: String
-    let assets: [Asset]
-
-    struct Asset: Decodable {
-        let name: String
-        let browserDownloadURL: String
-
-        enum CodingKeys: String, CodingKey {
-            case name
-            case browserDownloadURL = "browser_download_url"
-        }
-    }
+    let htmlURL: URL
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
-        case assets
+        case htmlURL = "html_url"
     }
 }

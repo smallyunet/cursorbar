@@ -17,7 +17,7 @@ No browser tab, no manual cookie paste — CursorBar reads your session from the
 - **Billing cycle info** — current period dates and days until reset
 - **Auto-refresh** — on launch and every 5 minutes
 - **Manual refresh** — click Refresh in the dropdown anytime
-- **Built-in updates** — checks GitHub for new versions on startup, with a manual check button and one-click update from the dropdown
+- **Manual update checks** — checks this repository's GitHub releases only when requested and opens the release page
 
 ## Requirements
 
@@ -27,20 +27,11 @@ No browser tab, no manual cookie paste — CursorBar reads your session from the
 
 ## Install
 
-### Homebrew (recommended)
+### GitHub Releases (recommended)
 
-```bash
-brew tap c-johannesen/cursorbar
-brew install cursorbar
-```
-
-Or without adding the tap permanently:
-
-```bash
-brew install c-johannesen/cursorbar/cursorbar
-```
-
-This installs `CursorBar.app` to `/Applications`. Open it from Applications or run:
+Download the latest universal ZIP from
+[GitHub Releases](https://github.com/smallyunet/cursorbar/releases/latest), unzip it,
+and move `CursorBar.app` to `/Applications`. Open it from Applications or run:
 
 ```bash
 open -a CursorBar
@@ -49,7 +40,7 @@ open -a CursorBar
 ### Build from source
 
 ```bash
-git clone https://github.com/c-johannesen/cursorbar.git
+git clone https://github.com/smallyunet/cursorbar.git
 cd cursorbar
 bash scripts/install.sh
 ```
@@ -123,11 +114,14 @@ The token is read fresh on every refresh and is **never stored** by CursorBar.
 ## Development
 
 ```bash
-git clone https://github.com/c-johannesen/cursorbar.git
+git clone https://github.com/smallyunet/cursorbar.git
 cd cursorbar
 
 # Build only
 bash scripts/package.sh
+
+# Run tests and verify the app bundle
+bash scripts/verify.sh
 
 # Build, install to /Applications, and launch
 bash scripts/package.sh --install --open
@@ -145,11 +139,13 @@ Sources/CursorBar/
   TokenProvider.swift # Read auth from Cursor IDE DB
   CursorAPI.swift     # Fetch usage-summary
   UsageStore.swift    # Refresh timer & display state
-  UpdateChecker.swift # GitHub release updates
+  UpdateChecker.swift # Manual GitHub release checks
 scripts/
   install.sh          # One-step install
   launch.sh           # Start the app
   package.sh          # Build .app bundle
+  verify.sh           # Contracts, tests, build, and bundle checks
+  release.sh          # Universal ZIP + SHA-256 release artifact
 ```
 
 ## Limitations
@@ -163,7 +159,9 @@ scripts/
 
 Pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The `main` branch is protected: only the repository owner can push to or merge into `main`. Everyone else should fork the repo and open a PR.
+This is an independently maintained distribution of
+[`c-johannesen/cursorbar`](https://github.com/c-johannesen/cursorbar).
+Contributions to this distribution should target `smallyunet/cursorbar`.
 
 ## License
 

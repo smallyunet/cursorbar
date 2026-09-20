@@ -50,6 +50,10 @@ final class UsageStore: ObservableObject {
             profileHandle = profileTokens.handle
             periodTokenCount = profileTokens.periodTokens
             lifetimeTokenCount = profileTokens.totalTokens
+        } else {
+            profileHandle = nil
+            periodTokenCount = nil
+            lifetimeTokenCount = nil
         }
     }
 
@@ -59,13 +63,27 @@ final class UsageStore: ObservableObject {
 
     /// Plain-text fallback for the menu bar while data is unavailable.
     var menuBarLabel: String {
+        Self.menuBarLabel(summary: summary, isLoading: isLoading, errorMessage: errorMessage)
+    }
+
+    static func menuBarLabel(
+        summary: UsageSummary?,
+        isLoading: Bool,
+        errorMessage: String?
+    ) -> String {
         if errorMessage != nil, summary == nil {
             return "!"
         }
-        guard let includedPercentUsed = quotaPercentUsed else {
+        if summary?.isUnlimitedPlan == true {
+            return "∞"
+        }
+        let percent = summary?.includedPercentUsed
+            ?? summary?.cursorModelsPercentUsed
+            ?? summary?.otherModelsPercentUsed
+        guard let percent else {
             return isLoading ? "…" : "!"
         }
-        return "\(Int(includedPercentUsed.rounded()))%"
+        return "\(Int(percent.rounded()))%"
     }
 
     /// Included-usage color from percent thresholds only. Overspend is a separate red badge.
@@ -75,6 +93,10 @@ final class UsageStore: ObservableObject {
 
     var planDisplayName: String {
         summary?.resolvedMembershipType.capitalized ?? "Unknown"
+    }
+
+    var isUnlimitedPlan: Bool {
+        summary?.isUnlimitedPlan ?? false
     }
 
     /// Total included credits consumed so far. `breakdown.total` is used amount, not pool size.
@@ -214,12 +236,12 @@ final class UsageStore: ObservableObject {
 
     var billingCycleEndDate: Date? {
         guard let end = summary?.billingCycleEnd else { return nil }
-        return Self.iso8601Formatter.date(from: end)
+        return FlexibleISO8601.date(from: end)
     }
 
     var billingCycleStartDate: Date? {
         guard let start = summary?.billingCycleStart else { return nil }
-        return Self.iso8601Formatter.date(from: start)
+        return FlexibleISO8601.date(from: start)
     }
 
     var daysUntilReset: Int? {
@@ -276,12 +298,6 @@ final class UsageStore: ObservableObject {
             }
         }
     }
-
-    private static let iso8601Formatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
 
     private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()

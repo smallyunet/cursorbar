@@ -3,35 +3,37 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
   release:
-    # macos-15 ships Xcode 16 (Swift 6); macos-14 only has Swift 5.10.
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Show toolchain
-        run: |
-          xcode-select --print-path
-          swift --version
-          xcodebuild -version
-
-      - name: Build app
-        run: VERSION="${GITHUB_REF_NAME#v}" bash scripts/package.sh
-
-      - name: Create zip
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          ditto -c -k --sequesterRsrc --keepParent CursorBar.app "CursorBar-${VERSION}.zip"
-          shasum -a 256 "CursorBar-${VERSION}.zip"
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+      - name: Check out tagged source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          files: CursorBar-*.zip
+          fetch-depth: 0
+
+      - name: Verify tag matches app version
+        run: |
+          version="$(plutil -extract CFBundleShortVersionString raw -o - Resources/Info.plist)"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+
+      - name: Build and verify universal app
+        env:
+          ARCHITECTURES: arm64 x86_64
+          ARCHIVE_ARCH: universal
+          EXPECTED_ARCHITECTURES: arm64 x86_64
+        run: ./scripts/release.sh
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          files: |
+            dist/CursorBar-*.zip
+            dist/CursorBar-*.zip.sha256
           generate_release_notes: true

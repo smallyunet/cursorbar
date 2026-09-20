@@ -8,9 +8,10 @@ final class MenuBarChromeMonitor: ObservableObject {
     private let app: NSApplication
     private var appearanceObservation: NSKeyValueObservation?
 
-    init(app: NSApplication = .shared) {
-        self.app = app
-        self.isDark = Self.resolve(app: app)
+    init(app: NSApplication? = nil) {
+        let resolvedApp = app ?? .shared
+        self.app = resolvedApp
+        self.isDark = Self.resolve(app: resolvedApp)
         start()
     }
 

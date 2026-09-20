@@ -3,57 +3,41 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="CursorBar"
-BUILD_DIR="$ROOT/.build/release"
 APP_BUNDLE="$ROOT/$APP_NAME.app"
-VERSION="${VERSION:-1.0.0}"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+ARCHITECTURES="${ARCHITECTURES:-}"
 
 cd "$ROOT"
 
+BUILD_ARGS=(-c release)
+if [[ -n "$ARCHITECTURES" ]]; then
+    read -r -a ARCH_LIST <<< "$ARCHITECTURES"
+    for arch in "${ARCH_LIST[@]}"; do
+        BUILD_ARGS+=(--arch "$arch")
+    done
+fi
+
 echo "Building $APP_NAME..."
-swift build -c release
+swift build "${BUILD_ARGS[@]}"
+BIN_DIR="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)"
+BIN_PATH="$BIN_DIR/$APP_NAME"
+[[ -x "$BIN_PATH" ]] || { echo "error: executable not found: $BIN_PATH" >&2; exit 1; }
 
-echo "Creating app bundle..."
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+cp "$BIN_PATH" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$ROOT/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+"$ROOT/scripts/build_icon.sh" "$APP_BUNDLE/Contents/Resources/CursorBar.icns"
 
-cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
-
-cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>CursorBar</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.cursorbar.app</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>CursorBar</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>${VERSION}</string>
-    <key>CFBundleVersion</key>
-    <string>${BUILD_NUMBER}</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-</dict>
-</plist>
-EOF
-
-echo "Signing app bundle..."
-xattr -cr "$APP_BUNDLE" 2>/dev/null || true
-codesign --force --deep --sign - "$APP_BUNDLE"
+if [[ "$SIGN_IDENTITY" != "none" ]]; then
+    if [[ "$SIGN_IDENTITY" == "-" ]]; then
+        codesign --force --options runtime --timestamp=none \
+            --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+    else
+        codesign --force --options runtime --timestamp \
+            --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+    fi
+fi
 
 echo "Built $APP_BUNDLE"
 
@@ -62,7 +46,6 @@ if [[ "${1:-}" == "--install" ]]; then
     rm -rf "/Applications/$APP_NAME.app"
     cp -R "$APP_BUNDLE" "/Applications/$APP_NAME.app"
     xattr -cr "/Applications/$APP_NAME.app" 2>/dev/null || true
-    codesign --force --deep --sign - "/Applications/$APP_NAME.app"
     echo "Installed /Applications/$APP_NAME.app"
 fi
 

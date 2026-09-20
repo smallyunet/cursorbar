@@ -17,8 +17,10 @@ Only the repository owner can merge pull requests and push to `main`. External c
 
 ## Before submitting
 
-- Test locally with `bash scripts/install.sh` or `bash scripts/package.sh`
+- Run the full verification harness with `bash scripts/verify.sh`
 - Verify API access: `.build/release/CursorBar --status`
+- For usage, privacy, agent, update, or release changes, preserve the contracts
+  in `docs/contracts/behavior-contracts.yaml` and add a regression guard.
 
 ## Branch protection
 
