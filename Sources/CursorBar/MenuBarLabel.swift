@@ -1,11 +1,29 @@
 import AppKit
 import SwiftUI
 
+enum MenuBarIconStyle: String, CaseIterable {
+    case gauges
+    case compact
+}
+
 enum MenuBarPrefs {
     static let showQuotaKey = "menuBarShowQuota"
     static let showDailyKey = "menuBarShowDaily"
     static let showOverspendKey = "menuBarShowOverspend"
     static let showAgentsKey = "menuBarShowAgents"
+    static let iconStyleKey = "menuBarIconStyle"
+}
+
+enum MenuBarCompactText {
+    static let quotaSymbol = "chart.pie.fill"
+    static let dailySymbol = "chart.bar.fill"
+    static let fontSize: CGFloat = 12
+
+    static func percentTitle(percent: Double?, isUnlimited: Bool = false) -> String {
+        if isUnlimited { return "∞" }
+        guard let percent else { return "—" }
+        return "\(Int(percent.rounded()))%"
+    }
 }
 
 struct MenuBarLabel: View {
@@ -15,6 +33,7 @@ struct MenuBarLabel: View {
     @AppStorage(MenuBarPrefs.showDailyKey) private var showDaily = true
     @AppStorage(MenuBarPrefs.showOverspendKey) private var showOverspend = true
     @AppStorage(MenuBarPrefs.showAgentsKey) private var showAgents = true
+    @AppStorage(MenuBarPrefs.iconStyleKey) private var iconStyle = MenuBarIconStyle.compact
     @StateObject private var chrome = MenuBarChromeMonitor()
 
     var body: some View {
@@ -24,6 +43,10 @@ struct MenuBarLabel: View {
                 .accessibilityLabel(accessibilitySummary)
         } else if !hasVisibleContent {
             Image(systemName: "chart.bar.fill")
+                .accessibilityLabel(accessibilitySummary)
+        } else if iconStyle == .compact {
+            compactContent
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilitySummary)
         } else if let image = renderedImage {
             Image(nsImage: image)
@@ -63,6 +86,37 @@ struct MenuBarLabel: View {
         return parts.joined(separator: ", ")
     }
 
+    private var compactContent: some View {
+        HStack(spacing: 8) {
+            if showAgents {
+                MenuBarAgentBadge(
+                    totalRunning: agents.totalRunning,
+                    needsInputCount: agents.needsInputCount
+                )
+            }
+            if showQuota {
+                MenuBarCompactMetric(
+                    systemImage: MenuBarCompactText.quotaSymbol,
+                    title: MenuBarCompactText.percentTitle(
+                        percent: store.quotaPercentUsed,
+                        isUnlimited: store.isUnlimitedPlan
+                    )
+                )
+            }
+            if showDaily {
+                MenuBarCompactMetric(
+                    systemImage: MenuBarCompactText.dailySymbol,
+                    title: MenuBarCompactText.percentTitle(percent: store.dailyUtilizationPercent)
+                )
+            }
+            if showOverspend, store.hasOverspend {
+                Text(UsageStore.formatDollarsCompact(cents: store.overspendCents))
+                    .font(.system(size: MenuBarCompactText.fontSize, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
     private var renderedImage: NSImage? {
         let isDark = chrome.isDark
         let content = HStack(spacing: 8) {
@@ -100,6 +154,23 @@ struct MenuBarLabel: View {
         guard let image = renderer.nsImage else { return nil }
         image.isTemplate = false
         return image
+    }
+}
+
+private struct MenuBarCompactMetric: View {
+    let systemImage: String
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: systemImage)
+                .font(.system(size: MenuBarCompactText.fontSize, weight: .medium))
+                .imageScale(.small)
+                .symbolRenderingMode(.monochrome)
+            Text(title)
+                .font(.system(size: MenuBarCompactText.fontSize, weight: .medium, design: .default))
+                .monospacedDigit()
+        }
     }
 }
 

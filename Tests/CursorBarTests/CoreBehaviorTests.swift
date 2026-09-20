@@ -24,6 +24,15 @@ final class CoreBehaviorTests: XCTestCase {
         XCTAssertThrowsError(try TokenProvider.extractUserID(from: "invalid"))
     }
 
+    func testCompactMenuBarPercentTitleMatchesNativeStatusItem() {
+        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: 31.6), "32%")
+        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: nil), "—")
+        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: nil, isUnlimited: true), "∞")
+        XCTAssertEqual(MenuBarCompactText.quotaSymbol, "chart.pie.fill")
+        XCTAssertEqual(MenuBarCompactText.dailySymbol, "chart.bar.fill")
+        XCTAssertEqual(MenuBarIconStyle.compact.rawValue, "compact")
+    }
+
     func testMenuBarChromeRecognizesStatusWindowsAndAppearance() {
         XCTAssertTrue(MenuBarChrome.looksLikeStatusBarWindow(className: "NSStatusBarWindow"))
         XCTAssertFalse(MenuBarChrome.looksLikeStatusBarWindow(className: "NSMenuBarWindow"))

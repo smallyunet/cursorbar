@@ -10,7 +10,8 @@ No browser tab, no manual cookie paste — CursorBar reads your session from the
 
 - **Agents badge** — circular indicator to the left of the quota gauge showing live agent count (local + cloud): green with count when running, yellow with count when agents need your input (tool approval or plan ready to build), red `0` when idle; dropdown lists agents needing input and opens them in Cursor when clicked
 - **Menu bar gauges** — quota gauge (`Q`) and daily utilization gauge (`D`), plus a red overspend amount when overspending
-- **Configurable menu bar** — toggle each element (agents, quota, daily utilization, overspend) via the gear button in the dropdown
+- **Compact menu bar** — optional Codex-style template icon plus percent (`chart.pie.fill 34%`, `chart.bar.fill 72%`) that follows the menu bar appearance instead of baked-in gauge colors
+- **Configurable menu bar** — toggle each element (agents, quota, daily utilization, overspend) and switch icon style via the gear button in the dropdown
 - **Daily utilization** — today's spend measured against a daily budget (total quota / working days in the billing cycle)
 - **Usage breakdown** — dollar amounts used, total credits (including bonus), and remaining balance
 - **Overspend tracking** — shows charges beyond included credits and on-demand spend with budget/remaining
@@ -63,7 +64,7 @@ bash scripts/launch.sh
 
 | Menu bar | Click to open dropdown |
 |----------|------------------------|
-| `[1] Q 42% D 85%` | Agents badge, quota/daily gauges, overspend (when applicable), plan details, refresh & quit |
+| `[1] Q 42% D 85%` | Agents badge, quota/daily (gauges or icon + percent), overspend (when applicable), plan details, refresh & quit |
 
 **Agents badge** (left of the gauges):
 

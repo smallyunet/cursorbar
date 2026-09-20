@@ -10,6 +10,7 @@ struct MenuContentView: View {
     @AppStorage(MenuBarPrefs.showDailyKey) private var showDaily = true
     @AppStorage(MenuBarPrefs.showOverspendKey) private var showOverspend = true
     @AppStorage(MenuBarPrefs.showAgentsKey) private var showAgents = true
+    @AppStorage(MenuBarPrefs.iconStyleKey) private var iconStyle = MenuBarIconStyle.compact
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -265,13 +266,25 @@ struct MenuContentView: View {
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Show in menu bar").font(.caption.weight(.medium))
-            Toggle("Agents badge", isOn: $showAgents)
-            Toggle("Quota gauge", isOn: $showQuota)
-            Toggle("Daily utilization gauge", isOn: $showDaily)
-            Toggle("Overspend amount", isOn: $showOverspend)
+            Group {
+                Toggle("Agents badge", isOn: $showAgents)
+                Toggle("Quota", isOn: $showQuota)
+                Toggle("Daily utilization", isOn: $showDaily)
+                Toggle("Overspend amount", isOn: $showOverspend)
+            }
+            .toggleStyle(.checkbox)
+            .font(.caption)
+            Text("Icon style").font(.caption.weight(.medium)).padding(.top, 4)
+            Picker("Icon style", selection: $iconStyle) {
+                Text("Gauges").tag(MenuBarIconStyle.gauges)
+                Text("Icon & percent").tag(MenuBarIconStyle.compact)
+            }
+            .pickerStyle(.segmented)
+            .font(.caption)
+            .labelsHidden()
+            .accessibilityLabel("Menu bar icon style")
+            .help("Gauges keep the filled pie and bar. Icon & percent uses a template symbol plus the percentage, like Codex Notch.")
         }
-        .toggleStyle(.checkbox)
-        .font(.caption)
     }
 
     private var footer: some View {
