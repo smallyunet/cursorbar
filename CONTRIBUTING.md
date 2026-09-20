@@ -4,7 +4,7 @@ Thanks for your interest in CursorBar!
 
 ## How to contribute
 
-This repository accepts contributions via **pull requests only**. You cannot push directly to `main`.
+External contributions should come in as pull requests. The maintainer can push directly to `main` for release work.
 
 1. Fork the repository
 2. Create a feature branch in your fork
@@ -22,12 +22,6 @@ Only the repository owner can merge pull requests and push to `main`. External c
 - For usage, privacy, agent, update, or release changes, preserve the contracts
   in `docs/contracts/behavior-contracts.yaml` and add a regression guard.
 
-## Branch protection
+## Branch policy
 
-The `main` branch is protected by a GitHub ruleset:
-
-- Pull requests are required before merging
-- Force pushes and branch deletion are blocked
-- The repository owner has bypass permissions for direct maintenance
-
-Do not request write access to this repository — fork and open a PR instead.
+This independent distribution does not use GitHub branch protection or rulesets on `main`. External contributors should still fork and open a PR rather than requesting write access.

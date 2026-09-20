@@ -51,6 +51,7 @@ final class UsageResolutionTests: XCTestCase {
         XCTAssertEqual(summary.otherModelsPercentUsed, 42)
     }
 
+    @MainActor
     func testUnlimitedPlanUsesInfinityInsteadOfErrorMarker() {
         let summary = UsageSummary(
             billingCycleStart: nil,

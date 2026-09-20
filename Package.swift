@@ -13,7 +13,8 @@ let package = Package(
         .testTarget(
             name: "CursorBarTests",
             dependencies: ["CursorBar"],
-            path: "Tests/CursorBarTests"
+            path: "Tests/CursorBarTests",
+            exclude: ["Fixtures"]
         ),
     ]
 )
