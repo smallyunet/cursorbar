@@ -4,18 +4,15 @@ A lightweight macOS menu bar app that shows your Cursor plan usage and how much 
 
 No browser tab, no manual cookie paste — CursorBar reads your session from the local Cursor IDE database and fetches usage from Cursor's dashboard API.
 
-![CursorBar dropdown showing agent status, needs-input alerts, usage breakdown by category, daily utilization, and billing cycle](docs/screenshot.png)
+![CursorBar dropdown showing remaining monthly quota, billing-cycle countdown, agent status, and plan details](docs/screenshot.png)
 
 ## Features
 
-- **Agents badge** — circular indicator to the left of the quota gauge showing live agent count (local + cloud): green with count when running, yellow with count when agents need your input (tool approval or plan ready to build), red `0` when idle; dropdown lists agents needing input and opens them in Cursor when clicked
-- **Menu bar gauges** — quota gauge (`Q`) and daily utilization gauge (`D`), plus a red overspend amount when overspending
-- **Compact menu bar** — optional Codex-style template icon plus percent (`chart.pie.fill 34%`, `chart.bar.fill 72%`) that follows the menu bar appearance instead of baked-in gauge colors
-- **Configurable menu bar** — toggle each element (agents, quota, daily utilization, overspend) and switch icon style via the gear button in the dropdown
-- **Daily utilization** — today's spend measured against a daily budget (total quota / working days in the billing cycle)
-- **Usage breakdown** — dollar amounts used, total credits (including bonus), and remaining balance
-- **Overspend tracking** — shows charges beyond included credits and on-demand spend with budget/remaining
-- **Billing cycle info** — current period dates and days until reset
+- **Remaining monthly quota** — menu bar shows a template icon plus the remaining included percentage (`chart.pie.fill 68%`)
+- **Countdown meters** — dropdown pairs remaining monthly quota with time left until the billing-cycle reset so the two remaining bars can be compared
+- **Agents** — dropdown lists inferred local and cloud agent counts, plus agents needing input; click an agent to open it in Cursor
+- **Usage details** — remaining Cursor Models / Other Models percentages, leftover included credits, overspend, and on-demand spend when Cursor reports them
+- **Billing cycle reset** — remaining duration uses the server-provided cycle start and end; missing dates show Unavailable rather than an assumed month
 - **Auto-refresh** — on launch and every 5 minutes
 - **Manual refresh** — click Refresh in the dropdown anytime
 - **Manual update checks** — checks this repository's GitHub releases only when requested and opens the release page
@@ -64,21 +61,13 @@ bash scripts/launch.sh
 
 | Menu bar | Click to open dropdown |
 |----------|------------------------|
-| `[1] Q 42% D 85%` | Agents badge, quota/daily (gauges or icon + percent), overspend (when applicable), plan details, refresh & quit |
+| `68%` | Remaining monthly quota, billing-cycle countdown, agent details, refresh & quit |
 
-**Agents badge** (left of the gauges):
-
-- Green with a number — that many agents are running (local + cloud)
-- Yellow with a number — that many agents need your input (tool approval or plan ready to build)
-- Red `0` — no agents running
+The menu bar percentage is remaining included quota, not usage consumed. Unlimited plans show `∞`.
 
 Agent status is read from local Cursor IDE data (transcripts and `state.vscdb`). Cloud agent status and plan/input flags can lag the UI by a minute or two because the IDE debounces writes to disk. Click an agent under **Needs input** to focus it in the Cursor app.
 
-**Color in dropdown** (progress bar and percentage):
-
-- Green — under 70% used
-- Yellow — 70–89%
-- Red — 90% or higher
+The two dropdown progress bars are remaining-state meters: monthly quota remaining, and time remaining until billing reset. They use a neutral fill so the two countdowns can be compared without color-coded “used” gauges.
 
 **Auto-refresh:** immediately on launch, then every **5 minutes** while the app is running.
 
@@ -92,7 +81,7 @@ Check that CursorBar can read your account:
 /Applications/CursorBar.app/Contents/MacOS/CursorBar --status
 ```
 
-Expected output: `OK 42%` (your percentage will differ).
+Expected output: `OK 50% remaining` (your percentage will differ).
 
 Common issues:
 
@@ -140,6 +129,7 @@ Sources/CursorBar/
   TokenProvider.swift # Read auth from Cursor IDE DB
   CursorAPI.swift     # Fetch usage-summary
   UsageStore.swift    # Refresh timer & display state
+  UsageRemaining.swift # Remaining quota and billing-cycle countdown
   UpdateChecker.swift # Manual GitHub release checks
 scripts/
   install.sh          # One-step install

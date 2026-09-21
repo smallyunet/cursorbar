@@ -24,26 +24,8 @@ final class CoreBehaviorTests: XCTestCase {
         XCTAssertThrowsError(try TokenProvider.extractUserID(from: "invalid"))
     }
 
-    func testCompactMenuBarPercentTitleMatchesNativeStatusItem() {
-        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: 31.6), "32%")
-        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: nil), "—")
-        XCTAssertEqual(MenuBarCompactText.percentTitle(percent: nil, isUnlimited: true), "∞")
-        XCTAssertEqual(MenuBarCompactText.quotaSymbol, "chart.pie.fill")
-        XCTAssertEqual(MenuBarCompactText.dailySymbol, "chart.bar.fill")
-        XCTAssertEqual(MenuBarIconStyle.compact.rawValue, "compact")
-    }
-
-    func testMenuBarChromeRecognizesStatusWindowsAndAppearance() {
-        XCTAssertTrue(MenuBarChrome.looksLikeStatusBarWindow(className: "NSStatusBarWindow"))
-        XCTAssertFalse(MenuBarChrome.looksLikeStatusBarWindow(className: "NSMenuBarWindow"))
-        XCTAssertTrue(MenuBarChrome.isDark(appearanceName: "NSAppearanceNameDarkAqua"))
-        XCTAssertFalse(MenuBarChrome.isDark(appearanceName: "NSAppearanceNameAqua"))
-    }
-
-    func testAgentCountFormatting() {
-        XCTAssertEqual(AgentMonitorFormatting.compactCount(0), "0")
-        XCTAssertEqual(AgentMonitorFormatting.compactCount(9), "9")
-        XCTAssertEqual(AgentMonitorFormatting.compactCount(10), "9+")
+    func testMenuBarShowsRemainingQuotaSymbol() {
+        XCTAssertEqual(MenuBarText.quotaSymbol, "chart.pie.fill")
     }
 
     func testCloudAgentParserCountsOnlyLiveAgents() {

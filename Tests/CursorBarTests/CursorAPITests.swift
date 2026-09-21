@@ -27,39 +27,6 @@ final class CursorAPITests: XCTestCase {
         XCTAssertEqual(summary.includedPercentUsed, 50)
     }
 
-    func testDailySpendContinuesBeyondTenPages() async throws {
-        let lock = NSLock()
-        var requestedPages: [Int] = []
-        MockURLProtocol.requestHandler = { request in
-            let body = try XCTUnwrap(Self.requestBody(request))
-            let json = try XCTUnwrap(
-                JSONSerialization.jsonObject(with: body) as? [String: Any]
-            )
-            let page = try XCTUnwrap((json["page"] as? NSNumber)?.intValue)
-            lock.lock()
-            requestedPages.append(page)
-            lock.unlock()
-
-            let payload = Data(
-                """
-                {
-                  "totalUsageEventsCount": 1050,
-                  "usageEventsDisplay": [{"chargedCents": 1}]
-                }
-                """.utf8
-            )
-            return (Self.response(status: 200, url: request.url!), payload)
-        }
-
-        let cents = try await CursorAPI.fetchTodaySpendCents(
-            credentials: SessionCredentials(cookieValue: "test-cookie"),
-            session: makeSession()
-        )
-
-        XCTAssertEqual(cents, 11)
-        XCTAssertEqual(requestedPages, Array(1...11))
-    }
-
     func testUnauthorizedInjectedCredentialsFailWithoutReadingLocalDatabase() async {
         MockURLProtocol.requestHandler = { request in
             (Self.response(status: 401, url: request.url!), Data())
@@ -91,24 +58,6 @@ final class CursorAPITests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("Fixtures")
             .appendingPathComponent(name)
-    }
-
-    private static func requestBody(_ request: URLRequest) -> Data? {
-        if let body = request.httpBody {
-            return body
-        }
-        guard let stream = request.httpBodyStream else { return nil }
-        stream.open()
-        defer { stream.close() }
-        var data = Data()
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
-        defer { buffer.deallocate() }
-        while stream.hasBytesAvailable {
-            let count = stream.read(buffer, maxLength: 1024)
-            guard count > 0 else { break }
-            data.append(buffer, count: count)
-        }
-        return data.isEmpty ? nil : data
     }
 
     private static func response(status: Int, url: URL) -> HTTPURLResponse {

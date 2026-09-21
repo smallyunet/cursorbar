@@ -5,12 +5,6 @@ struct MenuContentView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var updater: UpdateChecker
     @ObservedObject var agents: AgentMonitor
-    @State private var showSettings = false
-    @AppStorage(MenuBarPrefs.showQuotaKey) private var showQuota = true
-    @AppStorage(MenuBarPrefs.showDailyKey) private var showDaily = true
-    @AppStorage(MenuBarPrefs.showOverspendKey) private var showOverspend = true
-    @AppStorage(MenuBarPrefs.showAgentsKey) private var showAgents = true
-    @AppStorage(MenuBarPrefs.iconStyleKey) private var iconStyle = MenuBarIconStyle.compact
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,10 +23,6 @@ struct MenuContentView: View {
                 Divider()
                 updateSection
             }
-            if showSettings {
-                Divider()
-                settingsSection
-            }
             Divider()
             footer
         }
@@ -41,22 +31,12 @@ struct MenuContentView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("CursorBar").font(.headline)
-                Spacer()
-                Text(store.planDisplayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Text(store.billingCycleText)
-                .font(.caption)
+        HStack {
+            Text("CursorBar").font(.headline)
+            Spacer()
+            Text(store.planDisplayName)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-            if let days = store.daysUntilReset {
-                Text("Resets in \(days) day\(days == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -105,60 +85,39 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var usageSection: some View {
-        let hasMeters = store.includedPercentUsed != nil
-            || store.cursorModelsPercentUsed != nil
-            || store.otherModelsPercentUsed != nil
-
         if store.isUnlimitedPlan {
             Label("Unlimited usage plan", systemImage: "infinity")
                 .font(.subheadline.weight(.medium))
-        } else if hasMeters {
-            VStack(alignment: .leading, spacing: 10) {
-                if let percent = store.includedPercentUsed {
-                    UsageMeterView(
-                        title: "Included usage",
-                        percent: percent,
-                        color: store.includedStatusColor,
-                        usedCents: store.includedUsedCreditsCents,
-                        limitCents: store.includedLimitCreditsCents,
-                        remainingCents: store.includedRemainingCreditsCents
-                    )
-                }
-                if let percent = store.cursorModelsPercentUsed {
-                    UsageMeterView(
-                        title: "Cursor Models",
-                        percent: percent,
-                        color: store.cursorModelsStatusColor
-                    )
-                }
-                if let percent = store.otherModelsPercentUsed {
-                    UsageMeterView(
-                        title: "Other Models",
-                        percent: percent,
-                        color: store.otherModelsStatusColor,
-                        usedCents: store.otherModelsUsedCreditsCents,
-                        limitCents: store.otherModelsLimitCreditsCents
-                    )
-                }
-            }
-        }
-
-        if hasMeters, store.dailyUtilizationPercent != nil { Divider() }
-        if let percent = store.dailyUtilizationPercent {
-            UsageMeterView(
-                title: "Daily utilization",
-                percent: percent,
-                color: store.dailyStatusColor,
-                usedCents: store.todaySpendCents,
-                limitCents: store.dailyBudgetCents,
-                usedLabel: "Today",
-                footnote: store.workingDaysInCycle.map {
-                    "Daily budget = quota / \($0) working days"
-                }
+            RemainingMeterView(
+                title: "Until billing reset",
+                valueText: store.billingResetValue(),
+                progress: store.billingResetProgress(),
+                accessibilityLabel: "Time remaining until billing reset",
+                detail: store.billingResetDetail
             )
-        }
-        if store.hasTokenTotals, hasMeters || store.dailyUtilizationPercent != nil {
-            Divider()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                RemainingMeterView(
+                    title: "Monthly remaining",
+                    valueText: remainingValueText(store.includedPercentRemaining),
+                    progress: store.includedRemainingProgress,
+                    accessibilityLabel: "Monthly quota remaining",
+                    detail: includedRemainingDetail
+                )
+                RemainingMeterView(
+                    title: "Until billing reset",
+                    valueText: store.billingResetValue(),
+                    progress: store.billingResetProgress(),
+                    accessibilityLabel: "Time remaining until billing reset",
+                    detail: store.billingResetDetail
+                )
+            }
+            if let percent = store.cursorModelsPercentRemaining {
+                detailRow(title: "Cursor Models remaining", value: "\(Int(percent.rounded()))%")
+            }
+            if let percent = store.otherModelsPercentRemaining {
+                detailRow(title: "Other Models remaining", value: "\(Int(percent.rounded()))%")
+            }
         }
         if store.hasTokenTotals { tokensSection }
         if store.hasOverspend { overspendSection }
@@ -169,6 +128,18 @@ struct MenuContentView: View {
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var includedRemainingDetail: String? {
+        guard let remaining = store.includedRemainingCreditsCents,
+              let limit = store.includedLimitCreditsCents
+        else { return nil }
+        return "\(UsageStore.formatDollars(cents: remaining)) left of \(UsageStore.formatDollars(cents: limit))"
+    }
+
+    private func remainingValueText(_ percent: Double?) -> String {
+        guard let percent else { return "Unavailable" }
+        return "\(Int(percent.rounded()))%"
     }
 
     private var tokensSection: some View {
@@ -263,43 +234,12 @@ struct MenuContentView: View {
         }
     }
 
-    private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Show in menu bar").font(.caption.weight(.medium))
-            Group {
-                Toggle("Agents badge", isOn: $showAgents)
-                Toggle("Quota", isOn: $showQuota)
-                Toggle("Daily utilization", isOn: $showDaily)
-                Toggle("Overspend amount", isOn: $showOverspend)
-            }
-            .toggleStyle(.checkbox)
-            .font(.caption)
-            Text("Icon style").font(.caption.weight(.medium)).padding(.top, 4)
-            Picker("Icon style", selection: $iconStyle) {
-                Text("Gauges").tag(MenuBarIconStyle.gauges)
-                Text("Icon & percent").tag(MenuBarIconStyle.compact)
-            }
-            .pickerStyle(.segmented)
-            .font(.caption)
-            .labelsHidden()
-            .accessibilityLabel("Menu bar icon style")
-            .help("Gauges keep the filled pie and bar. Icon & percent uses a template symbol plus the percentage, like Codex Notch.")
-        }
-    }
-
     private var footer: some View {
         HStack {
             Text("Updated \(store.lastUpdatedText) · v\(UpdateChecker.currentVersion)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Button { showSettings.toggle() } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.borderless)
-            .help("Menu bar settings")
-            .accessibilityLabel(showSettings ? "Hide menu bar settings" : "Show menu bar settings")
-
             Button {
                 Task { await updater.checkForUpdates(announceResult: true) }
             } label: {
@@ -332,53 +272,38 @@ struct MenuContentView: View {
     }
 }
 
-private struct UsageMeterView: View {
+private struct RemainingMeterView: View {
     let title: String
-    let percent: Double
-    let color: Color
-    var usedCents: Int?
-    var limitCents: Int?
-    var remainingCents: Int?
-    var usedLabel = "Used"
-    var footnote: String?
+    let valueText: String
+    let progress: Double?
+    let accessibilityLabel: String
+    var detail: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+            HStack {
                 Text(title)
                     .font(.caption.weight(.medium))
-                    .frame(width: 110, alignment: .leading)
-                    .lineLimit(1)
-                ProgressView(value: min(max(percent / 100, 0), 1))
-                    .tint(color)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 6)
-                    .accessibilityLabel(title)
-                    .accessibilityValue("\(Int(percent.rounded())) percent used")
-                Text("\(Int(percent.rounded()))%")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(color)
-                    .frame(width: 30, alignment: .trailing)
+                Spacer()
+                Text(valueText)
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
-            if let detailText {
-                Text(detailText)
+            ProgressView(value: progress ?? 0)
+                .progressViewStyle(.linear)
+                .tint(Color.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 6)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(
+                    progress.map { "\(Int(($0 * 100).rounded())) percent remaining" } ?? "Unavailable"
+                )
+            if let detail {
+                Text(detail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
-            if let footnote {
-                Text(footnote).font(.caption2).foregroundStyle(.secondary)
-            }
         }
-    }
-
-    private var detailText: String? {
-        guard let usedCents, let limitCents else { return nil }
-        var value = "\(usedLabel) \(UsageStore.formatDollars(cents: usedCents))"
-            + " / \(UsageStore.formatDollars(cents: limitCents))"
-        if let remainingCents {
-            value += " · \(UsageStore.formatDollars(cents: remainingCents)) left"
-        }
-        return value
     }
 }

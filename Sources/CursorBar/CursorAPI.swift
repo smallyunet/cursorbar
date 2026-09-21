@@ -4,7 +4,6 @@ enum CursorAPIError: Error, LocalizedError {
     case notAuthenticated
     case invalidResponse
     case httpError(statusCode: Int)
-    case tooManyUsageEvents
 
     var errorDescription: String? {
         switch self {
@@ -14,8 +13,6 @@ enum CursorAPIError: Error, LocalizedError {
             "Could not parse usage data from Cursor."
         case .httpError(let statusCode):
             "Cursor API returned HTTP \(statusCode)."
-        case .tooManyUsageEvents:
-            "Today's usage contains too many events to calculate safely."
         }
     }
 }
@@ -77,24 +74,6 @@ struct UsageSummary: Decodable, Sendable {
     let teamUsage: TeamUsage?
 }
 
-struct UsageEventsPage: Decodable, Sendable {
-    let totalUsageEventsCount: Int
-    let usageEventsDisplay: [UsageEvent]
-}
-
-struct UsageEvent: Decodable, Sendable {
-    let chargedCents: Double?
-    let tokenUsage: TokenUsage?
-
-    struct TokenUsage: Decodable, Sendable {
-        let totalCents: Double?
-    }
-
-    var costCents: Double {
-        chargedCents ?? tokenUsage?.totalCents ?? 0
-    }
-}
-
 struct PublicProfileTokens: Equatable, Sendable {
     let handle: String
     let periodTokens: Int
@@ -103,7 +82,6 @@ struct PublicProfileTokens: Equatable, Sendable {
 
 enum CursorAPI {
     private static let usageSummaryURL = URL(string: "https://cursor.com/api/usage-summary")!
-    private static let usageEventsURL = URL(string: "https://cursor.com/api/dashboard/get-filtered-usage-events")!
     private static let userProfileURL = URL(string: "https://cursor.com/api/dashboard/get-user-profile")!
     static let networkSession = SecureNetworkSession.make()
 
@@ -143,122 +121,6 @@ enum CursorAPI {
                 periodStart: periodStart,
                 session: session
             )
-        }
-    }
-
-    /// Sums usage-event cost for today's Daily window, in cents.
-    /// Starts at local midnight, or at `cycleStart` when the billing cycle reset later the same day.
-    static func fetchTodaySpendCents(
-        cycleStart: Date? = nil,
-        credentials suppliedCredentials: SessionCredentials? = nil,
-        session: URLSession = networkSession
-    ) async throws -> Int {
-        var credentials = try suppliedCredentials ?? TokenProvider.loadSessionCredentials()
-
-        do {
-            return try await requestTodaySpendCents(
-                credentials: credentials,
-                cycleStart: cycleStart,
-                session: session
-            )
-        } catch CursorAPIError.notAuthenticated {
-            guard suppliedCredentials == nil else { throw CursorAPIError.notAuthenticated }
-            credentials = try TokenProvider.loadSessionCredentials()
-            return try await requestTodaySpendCents(
-                credentials: credentials,
-                cycleStart: cycleStart,
-                session: session
-            )
-        }
-    }
-
-    private static func todaySpendWindowStart(
-        now: Date = Date(),
-        cycleStart: Date?,
-        calendar: Calendar = .current
-    ) -> Date {
-        let midnight = calendar.startOfDay(for: now)
-        guard let cycleStart else { return midnight }
-        return max(midnight, cycleStart)
-    }
-
-    private static func requestTodaySpendCents(
-        credentials: SessionCredentials,
-        cycleStart: Date?,
-        session: URLSession
-    ) async throws -> Int {
-        let windowStart = todaySpendWindowStart(cycleStart: cycleStart)
-        let startMs = String(Int(windowStart.timeIntervalSince1970 * 1000))
-        let endMs = String(Int(Date().timeIntervalSince1970 * 1000))
-
-        let pageSize = 100
-        let maxPages = 100
-        var totalCents = 0.0
-        var page = 1
-
-        while true {
-            let result = try await requestUsageEventsPage(
-                credentials: credentials,
-                startMs: startMs,
-                endMs: endMs,
-                page: page,
-                pageSize: pageSize,
-                session: session
-            )
-            totalCents += result.usageEventsDisplay.reduce(0) { $0 + $1.costCents }
-
-            if page * pageSize >= result.totalUsageEventsCount || result.usageEventsDisplay.isEmpty {
-                break
-            }
-            guard page < maxPages else {
-                throw CursorAPIError.tooManyUsageEvents
-            }
-            page += 1
-        }
-
-        return Int(totalCents.rounded())
-    }
-
-    private static func requestUsageEventsPage(
-        credentials: SessionCredentials,
-        startMs: String,
-        endMs: String,
-        page: Int,
-        pageSize: Int,
-        session: URLSession
-    ) async throws -> UsageEventsPage {
-        var request = URLRequest(url: usageEventsURL)
-        request.httpMethod = "POST"
-        request.setValue("WorkosCursorSessionToken=\(credentials.cookieValue)", forHTTPHeaderField: "Cookie")
-        request.setValue("https://cursor.com", forHTTPHeaderField: "Origin")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "startDate": startMs,
-            "endDate": endMs,
-            "page": page,
-            "pageSize": pageSize,
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CursorAPIError.invalidResponse
-        }
-
-        switch httpResponse.statusCode {
-        case 200:
-            break
-        case 401:
-            throw CursorAPIError.notAuthenticated
-        default:
-            throw CursorAPIError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        do {
-            return try JSONDecoder().decode(UsageEventsPage.self, from: data)
-        } catch {
-            throw CursorAPIError.invalidResponse
         }
     }
 

@@ -33,5 +33,5 @@ echo "Launching $APP_NAME..."
 bash "$ROOT/scripts/launch.sh"
 
 echo
-echo "Done. Look for your usage percentage in the menu bar (e.g. 42%)."
+echo "Done. Look for remaining monthly quota in the menu bar (e.g. 68%)."
 echo "Installed to: $INSTALLED_APP"

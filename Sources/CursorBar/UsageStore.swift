@@ -1,10 +1,9 @@
+import Combine
 import Foundation
-import SwiftUI
 
 @MainActor
 final class UsageStore: ObservableObject {
     @Published private(set) var summary: UsageSummary?
-    @Published private(set) var todaySpendCents: Int?
     @Published private(set) var periodTokenCount: Int?
     @Published private(set) var lifetimeTokenCount: Int?
     @Published private(set) var profileHandle: String?
@@ -33,20 +32,9 @@ final class UsageStore: ObservableObject {
             errorMessage = error.localizedDescription
         }
 
-        // Daily spend and profile tokens are supplementary; failures must not break the main display.
-        let cycleStart = billingCycleStartDate
-        async let todaySpendResult: Int? = try? await CursorAPI.fetchTodaySpendCents(cycleStart: cycleStart)
-        async let profileTokensResult: PublicProfileTokens? = try? await CursorAPI.fetchPublicProfileTokens(periodStart: cycleStart)
-
-        todaySpendCents = await todaySpendResult
-        if let cycleStart,
-           Calendar.current.isDate(Date(), inSameDayAs: cycleStart),
-           let includedUsed = includedUsedCreditsCents
-        {
-            todaySpendCents = includedUsed
-        }
-
-        if let profileTokens = await profileTokensResult {
+        if let profileTokens = try? await CursorAPI.fetchPublicProfileTokens(
+            periodStart: billingCycleStartDate
+        ) {
             profileHandle = profileTokens.handle
             periodTokenCount = profileTokens.periodTokens
             lifetimeTokenCount = profileTokens.totalTokens
@@ -77,18 +65,13 @@ final class UsageStore: ObservableObject {
         if summary?.isUnlimitedPlan == true {
             return "∞"
         }
-        let percent = summary?.includedPercentUsed
+        let used = summary?.includedPercentUsed
             ?? summary?.cursorModelsPercentUsed
             ?? summary?.otherModelsPercentUsed
-        guard let percent else {
+        guard let remaining = UsageRemaining.percent(fromUsed: used) else {
             return isLoading ? "…" : "!"
         }
-        return "\(Int(percent.rounded()))%"
-    }
-
-    /// Included-usage color from percent thresholds only. Overspend is a separate red badge.
-    var statusColor: Color {
-        Self.statusColor(for: quotaPercentUsed)
+        return "\(Int(remaining.rounded()))%"
     }
 
     var planDisplayName: String {
@@ -110,12 +93,6 @@ final class UsageStore: ObservableObject {
         summary?.includedLimitCents
     }
 
-    /// Included pool size; alias retained for overspend accounting.
-    var totalCreditsCents: Int? {
-        includedLimitCreditsCents
-    }
-
-    /// Included pool usage percentage, as reported by Cursor.
     var includedPercentUsed: Double? {
         summary?.includedPercentUsed
     }
@@ -125,14 +102,34 @@ final class UsageStore: ObservableObject {
         includedPercentUsed ?? cursorModelsPercentUsed ?? otherModelsPercentUsed
     }
 
+    var quotaPercentRemaining: Double? {
+        UsageRemaining.percent(fromUsed: quotaPercentUsed)
+    }
+
+    var includedPercentRemaining: Double? {
+        UsageRemaining.percent(fromUsed: includedPercentUsed)
+    }
+
+    var includedRemainingProgress: Double? {
+        UsageRemaining.progress(fromRemainingPercent: includedPercentRemaining)
+    }
+
     /// Cursor Models pool (Auto, Composer, Cursor Grok). Percent only — the API has no dollar cap for this pool.
     var cursorModelsPercentUsed: Double? {
         summary?.cursorModelsPercentUsed
     }
 
+    var cursorModelsPercentRemaining: Double? {
+        UsageRemaining.percent(fromUsed: cursorModelsPercentUsed)
+    }
+
     /// Other Models pool (named / third-party).
     var otherModelsPercentUsed: Double? {
         summary?.otherModelsPercentUsed
+    }
+
+    var otherModelsPercentRemaining: Double? {
+        UsageRemaining.percent(fromUsed: otherModelsPercentUsed)
     }
 
     var otherModelsLimitCreditsCents: Int? {
@@ -141,25 +138,6 @@ final class UsageStore: ObservableObject {
 
     var otherModelsUsedCreditsCents: Int? {
         summary?.otherModelsUsedCents
-    }
-
-    var cursorModelsStatusColor: Color {
-        Self.statusColor(for: cursorModelsPercentUsed)
-    }
-
-    var otherModelsStatusColor: Color {
-        Self.statusColor(for: otherModelsPercentUsed)
-    }
-
-    var includedStatusColor: Color {
-        Self.statusColor(for: includedPercentUsed)
-    }
-
-    static func statusColor(for percent: Double?) -> Color {
-        guard let percent else { return .secondary }
-        if percent >= 90 { return .red }
-        if percent >= 70 { return .yellow }
-        return .green
     }
 
     var includedRemainingCreditsCents: Int? {
@@ -198,42 +176,6 @@ final class UsageStore: ObservableObject {
         overspendCents > 0
     }
 
-    /// Mon-Fri days between billing cycle start and end.
-    var workingDaysInCycle: Int? {
-        guard let start = billingCycleStartDate, let end = billingCycleEndDate, start < end else { return nil }
-        let calendar = Calendar.current
-        var count = 0
-        var day = calendar.startOfDay(for: start)
-        let lastDay = calendar.startOfDay(for: end)
-        while day < lastDay {
-            if !calendar.isDateInWeekend(day) {
-                count += 1
-            }
-            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
-            day = next
-        }
-        return count > 0 ? count : nil
-    }
-
-    /// Total quota divided by working days in the billing cycle.
-    var dailyBudgetCents: Int? {
-        guard let includedLimitCreditsCents, let workingDaysInCycle else { return nil }
-        return includedLimitCreditsCents / workingDaysInCycle
-    }
-
-    /// Today's spend as a percentage of the daily budget. Can exceed 100%.
-    var dailyUtilizationPercent: Double? {
-        guard let todaySpendCents, let dailyBudgetCents, dailyBudgetCents > 0 else { return nil }
-        return Double(todaySpendCents) / Double(dailyBudgetCents) * 100.0
-    }
-
-    var dailyStatusColor: Color {
-        guard let dailyUtilizationPercent else { return .secondary }
-        if dailyUtilizationPercent > 100 { return .red }
-        if dailyUtilizationPercent >= 70 { return .yellow }
-        return .green
-    }
-
     var billingCycleEndDate: Date? {
         guard let end = summary?.billingCycleEnd else { return nil }
         return FlexibleISO8601.date(from: end)
@@ -244,18 +186,24 @@ final class UsageStore: ObservableObject {
         return FlexibleISO8601.date(from: start)
     }
 
-    var daysUntilReset: Int? {
-        guard let billingCycleEndDate else { return nil }
-        let days = Calendar.current.dateComponents([.day], from: Date(), to: billingCycleEndDate).day ?? 0
-        return max(days, 0)
+    func billingResetValue(now: Date = Date()) -> String {
+        guard let remaining = UsageRemaining.remainingInterval(until: billingCycleEndDate, now: now) else {
+            return "Unavailable"
+        }
+        return UsageRemaining.durationText(remaining)
     }
 
-    var billingCycleText: String {
-        guard let start = billingCycleStartDate, let end = billingCycleEndDate else {
-            return "Billing cycle unavailable"
-        }
-        let formatter = Self.shortDateFormatter
-        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
+    func billingResetProgress(now: Date = Date()) -> Double? {
+        UsageRemaining.cycleProgress(
+            start: billingCycleStartDate,
+            end: billingCycleEndDate,
+            now: now
+        )
+    }
+
+    var billingResetDetail: String? {
+        guard let end = billingCycleEndDate else { return nil }
+        return "Resets: \(Self.shortDateFormatter.string(from: end))"
     }
 
     var lastUpdatedText: String {
@@ -282,12 +230,6 @@ final class UsageStore: ObservableObject {
             return sign + String(format: "%.1fK", Double(value) / 1_000.0)
         }
         return sign + "\(value)"
-    }
-
-    /// Whole-dollar amount for the compact menu bar label.
-    static func formatDollarsCompact(cents: Int) -> String {
-        let dollars = (Double(cents) / 100.0).rounded()
-        return compactCurrencyFormatter.string(from: NSNumber(value: dollars)) ?? String(format: "$%.0f", dollars)
     }
 
     private func startAutoRefresh() {
@@ -319,16 +261,6 @@ final class UsageStore: ObservableObject {
         formatter.currencyCode = "USD"
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
-        return formatter
-    }()
-
-    private static let compactCurrencyFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.currencySymbol = "$"
-        formatter.maximumFractionDigits = 0
-        formatter.minimumFractionDigits = 0
         return formatter
     }()
 }

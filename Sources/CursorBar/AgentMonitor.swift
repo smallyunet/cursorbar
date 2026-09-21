@@ -21,12 +21,6 @@ struct AgentNeedingInput: Identifiable, Sendable {
     }
 }
 
-enum AgentMonitorFormatting {
-    static func compactCount(_ count: Int) -> String {
-        count > 9 ? "9+" : "\(count)"
-    }
-}
-
 /// Monitors live Cursor agents using local data only:
 /// - Local agents: union of (a) transcript files under ~/.cursor/projects/*/agent-transcripts/
 ///   with a recent mtime and (b) composers in state.vscdb (`composer.composerHeaders`) with a

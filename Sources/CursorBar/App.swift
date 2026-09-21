@@ -27,15 +27,15 @@ enum CursorBarMain {
                 let overage = pool > 0 ? max(used - pool, 0) : 0
                 let onDemandUsed = Double(summary.resolvedOnDemand?.usedCents ?? 0)
                 let overspend = overage + onDemandUsed
-                let percent = min(summary.includedPercentUsed ?? 0, 100)
+                let percent = UsageRemaining.percent(fromUsed: summary.includedPercentUsed) ?? 0
                 if overspend > 0 {
                     print(String(
-                        format: "OK %.0f%% (overspend $%.2f)",
+                        format: "OK %.0f%% remaining (overspend $%.2f)",
                         percent,
                         overspend / 100.0
                     ))
                 } else {
-                    print(String(format: "OK %.0f%%", percent))
+                    print(String(format: "OK %.0f%% remaining", percent))
                 }
                 if let tokens = try? await CursorAPI.fetchPublicProfileTokens(
                     periodStart: summary.billingCycleStart.flatMap(FlexibleISO8601.date)
@@ -75,7 +75,7 @@ struct CursorBarApp: App {
         MenuBarExtra {
             MenuContentView(store: store, updater: updater, agents: agents)
         } label: {
-            MenuBarLabel(store: store, agents: agents)
+            MenuBarLabel(store: store)
         }
         .menuBarExtraStyle(.window)
     }
