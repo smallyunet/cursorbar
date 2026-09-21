@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import CursorBar
@@ -26,6 +27,12 @@ final class CoreBehaviorTests: XCTestCase {
 
     func testMenuBarShowsRemainingQuotaSymbol() {
         XCTAssertEqual(MenuBarText.quotaSymbol, "chart.pie.fill")
+        XCTAssertEqual(MenuBarText.fontSize, 12)
+        XCTAssertEqual(MenuChrome.rowFontSize, 13)
+        XCTAssertEqual(MenuChrome.detailFontSize, 11)
+        XCTAssertEqual(MenuChrome.progressHeight, 6)
+        XCTAssertEqual(MenuChrome.progressFill, .secondaryLabelColor)
+        XCTAssertEqual(MenuChrome.progressTrack, .separatorColor)
     }
 
     func testCloudAgentParserCountsOnlyLiveAgents() {

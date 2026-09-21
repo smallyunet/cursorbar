@@ -2,7 +2,7 @@ import SwiftUI
 
 enum MenuBarText {
     static let quotaSymbol = "chart.pie.fill"
-    static let fontSize: CGFloat = 12
+    static let fontSize = MenuChrome.menuBarFontSize
 }
 
 struct MenuBarLabel: View {
@@ -11,13 +11,12 @@ struct MenuBarLabel: View {
     var body: some View {
         HStack(spacing: 2) {
             Image(systemName: MenuBarText.quotaSymbol)
-                .font(.system(size: MenuBarText.fontSize, weight: .medium))
                 .imageScale(.small)
                 .symbolRenderingMode(.monochrome)
             Text(store.menuBarLabel)
-                .font(.system(size: MenuBarText.fontSize, weight: .medium, design: .default))
                 .monospacedDigit()
         }
+        .font(.system(size: MenuBarText.fontSize, weight: .medium).monospacedDigit())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
     }
