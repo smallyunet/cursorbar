@@ -18,13 +18,17 @@ final class UsageResolutionTests: XCTestCase {
         XCTAssertEqual(UsageRemaining.percent(fromUsed: summary.otherModelsPercentUsed), 0)
     }
 
-    func testRemainingPercentClampsUsedValues() {
+    func testRemainingPercentClampsUsedValues() throws {
         XCTAssertEqual(UsageRemaining.percent(fromUsed: 0), 100)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: 31.6), 68.4)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: 100), 0)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: 120), 0)
         XCTAssertNil(UsageRemaining.percent(fromUsed: nil))
-        XCTAssertEqual(UsageRemaining.progress(fromRemainingPercent: 81), 0.81, accuracy: 0.0001)
+        XCTAssertEqual(
+            try XCTUnwrap(UsageRemaining.progress(fromRemainingPercent: 81)),
+            0.81,
+            accuracy: 0.0001
+        )
     }
 
     func testBillingResetProgressUsesExactCycleWindow() throws {
@@ -33,7 +37,7 @@ final class UsageResolutionTests: XCTestCase {
         let now = try XCTUnwrap(FlexibleISO8601.date(from: "2026-09-21T00:00:00Z"))
 
         XCTAssertEqual(
-            UsageRemaining.cycleProgress(start: start, end: end, now: now),
+            try XCTUnwrap(UsageRemaining.cycleProgress(start: start, end: end, now: now)),
             10.0 / 30.0,
             accuracy: 0.0001
         )
@@ -42,8 +46,9 @@ final class UsageResolutionTests: XCTestCase {
             "10d 0h"
         )
         XCTAssertEqual(
-            UsageRemaining.cycleProgress(start: start, end: end, now: end.addingTimeInterval(60)),
-            0
+            try XCTUnwrap(UsageRemaining.cycleProgress(start: start, end: end, now: end.addingTimeInterval(60))),
+            0,
+            accuracy: 0.0001
         )
         XCTAssertNil(UsageRemaining.cycleProgress(start: nil, end: end, now: now))
         XCTAssertNil(UsageRemaining.cycleProgress(start: start, end: start, now: now))
