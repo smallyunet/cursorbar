@@ -39,7 +39,10 @@ struct MenuContentView: View {
     private var usageSection: some View {
         MenuLabelRow(title: "Plan", value: store.planDisplayName)
         if let remaining = store.includedRemainingCreditsCents {
-            MenuLabelRow(title: "Credits remaining", value: UsageStore.formatDollars(cents: remaining))
+            MenuLabelRow(title: "Included credits remaining", value: UsageStore.formatDollars(cents: remaining))
+        }
+        if let remaining = store.otherModelsRemainingCreditsCents {
+            MenuLabelRow(title: "Other Models credits remaining", value: UsageStore.formatDollars(cents: remaining))
         }
         if store.isUnlimitedPlan {
             MenuLabelRow(title: "Monthly remaining", value: "Unlimited")
@@ -136,22 +139,24 @@ struct MenuContentView: View {
 
     private var overspendSection: some View {
         VStack(alignment: .leading, spacing: MenuChrome.stackSpacing) {
-            MenuLabelRow(
-                title: "Overspend",
-                value: UsageStore.formatDollars(cents: store.overspendCents),
-                valueColor: Color(nsColor: .systemRed)
-            )
-            if store.includedOverageCents > 0 {
+            if let overspend = store.overspendCents, overspend > 0 {
                 MenuLabelRow(
-                    title: "Over included",
-                    value: UsageStore.formatDollars(cents: store.includedOverageCents),
+                    title: "Overspend",
+                    value: UsageStore.formatDollars(cents: overspend),
                     valueColor: Color(nsColor: .systemRed)
                 )
             }
-            if store.onDemandUsedCents > 0 {
+            if let overage = store.includedOverageCents, overage > 0 {
+                MenuLabelRow(
+                    title: "Over included",
+                    value: UsageStore.formatDollars(cents: overage),
+                    valueColor: Color(nsColor: .systemRed)
+                )
+            }
+            if let onDemand = store.onDemandUsedCents, onDemand > 0 {
                 MenuLabelRow(
                     title: "On-demand",
-                    value: UsageStore.formatDollars(cents: store.onDemandUsedCents),
+                    value: UsageStore.formatDollars(cents: onDemand),
                     valueColor: Color(nsColor: .systemRed)
                 )
             }
@@ -180,7 +185,8 @@ struct MenuContentView: View {
     }
 
     private var onDemandSpendText: String {
-        let used = UsageStore.formatDollars(cents: store.onDemandUsedCents)
+        guard let usedCents = store.onDemandUsedCents else { return "Unavailable" }
+        let used = UsageStore.formatDollars(cents: usedCents)
         guard let limit = store.onDemandLimitCents else { return used }
         return "\(used) / \(UsageStore.formatDollars(cents: limit))"
     }

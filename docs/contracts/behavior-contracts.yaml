@@ -1,9 +1,10 @@
 contracts:
   - id: USAGE-SEMANTICS-001
     title: Usage values are server-backed and fail closed
-    statement: CursorBar displays only values present in Cursor responses or calculations whose inputs are all present. Included quota is shown as remaining percentage derived from the reported used percentage. Billing-cycle remaining progress is shown only when both cycle start and end timestamps are present. Missing fields are never replaced with estimated daily budgets or guessed quota values. Unlimited plans display Unlimited and never an error marker.
+    statement: CursorBar displays monetary usage only from structured Cursor response fields and never infers credit limits, remaining credits, or spend from percentages, plan assumptions, or display-message prose. Included quota is shown as remaining percentage derived from the structured reported used percentage. Billing-cycle remaining progress is shown only when both cycle start and end timestamps are present. Unlimited plans display Unlimited and never an error marker.
     risk: high
     guards:
+      - Sources/CursorBar/UsageSummary+Resolved.swift
       - Sources/CursorBar/UsageRemaining.swift
       - Tests/CursorBarTests/UsageResolutionTests.swift
       - Tests/CursorBarTests/CoreBehaviorTests.swift

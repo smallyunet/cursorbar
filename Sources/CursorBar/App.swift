@@ -22,13 +22,16 @@ enum CursorBarMain {
                     print("OK unlimited")
                     exit(0)
                 }
-                let used = Double(summary.includedUsedCents ?? 0)
-                let pool = Double(summary.includedLimitCents ?? 0)
-                let overage = pool > 0 ? max(used - pool, 0) : 0
-                let onDemandUsed = Double(summary.resolvedOnDemand?.usedCents ?? 0)
-                let overspend = overage + onDemandUsed
+                let overspend: Double?
+                if let used = summary.includedUsedCents,
+                   let pool = summary.includedLimitCents,
+                   let onDemandUsed = summary.resolvedOnDemand?.used {
+                    overspend = Double(max(used - pool, 0) + onDemandUsed)
+                } else {
+                    overspend = nil
+                }
                 let percent = UsageRemaining.percent(fromUsed: summary.includedPercentUsed) ?? 0
-                if overspend > 0 {
+                if let overspend, overspend > 0 {
                     print(String(
                         format: "OK %.0f%% remaining (overspend $%.2f)",
                         percent,

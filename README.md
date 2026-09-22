@@ -11,7 +11,7 @@ No browser tab, no manual cookie paste — CursorBar reads your session from the
 - **Remaining monthly quota** — menu bar shows a template icon plus the remaining included percentage (`chart.pie.fill 68%`)
 - **Countdown meters** — dropdown pairs remaining monthly quota with time left until the billing-cycle reset so the two remaining bars can be compared
 - **Agents** — dropdown lists inferred local and cloud agent counts, plus agents needing input; click an agent to open it in Cursor
-- **Usage details** — remaining Cursor Models / Other Models percentages, leftover included credits, overspend, and on-demand spend when Cursor reports them
+- **Usage details** — structured Cursor Models / Other Models percentages and monetary values only when Cursor reports their matching API fields; missing values stay unavailable rather than being inferred
 - **Billing cycle reset** — remaining duration uses the server-provided cycle start and end; missing dates show Unavailable rather than an assumed month
 - **Auto-refresh** — on launch and every 5 minutes
 - **Manual refresh** — click Refresh in the dropdown anytime

@@ -8,11 +8,15 @@ final class UsageResolutionTests: XCTestCase {
         let summary = try JSONDecoder().decode(UsageSummary.self, from: data)
 
         XCTAssertEqual(summary.includedUsedCents, 30_000)
-        XCTAssertEqual(summary.includedLimitCents, 60_000)
+        XCTAssertNil(summary.includedLimitCents)
+        XCTAssertNil(summary.includedRemainingCents)
         XCTAssertEqual(summary.includedPercentUsed, 50)
         XCTAssertEqual(summary.cursorModelsPercentUsed, 25)
         XCTAssertEqual(summary.otherModelsPercentUsed, 100)
-        XCTAssertEqual(summary.resolvedOnDemand?.usedCents, 125)
+        XCTAssertEqual(summary.resolvedOnDemand?.used, 125)
+        XCTAssertEqual(summary.otherModelsLimitCents, 40_000)
+        XCTAssertEqual(summary.otherModelsUsedCents, 40_000)
+        XCTAssertEqual(summary.otherModelsRemainingCents, 0)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: summary.includedPercentUsed), 50)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: summary.cursorModelsPercentUsed), 75)
         XCTAssertEqual(UsageRemaining.percent(fromUsed: summary.otherModelsPercentUsed), 0)
@@ -76,7 +80,7 @@ final class UsageResolutionTests: XCTestCase {
         )
     }
 
-    func testIndividualCreditFloorIsNotAppliedToEnterprise() {
+    func testMissingOverallValuesAreNeverInferred() {
         let plan = PlanUsage(
             enabled: true,
             used: nil,
@@ -87,15 +91,37 @@ final class UsageResolutionTests: XCTestCase {
             apiPercentUsed: nil,
             totalPercentUsed: 0
         )
-        let individual = makeSummary(membership: "pro", plan: plan)
-        let enterprise = makeSummary(membership: "enterprise", plan: plan)
+        let summary = makeSummary(membership: "pro", plan: plan)
 
-        XCTAssertEqual(individual.includedLimitCents, 60_000)
-        XCTAssertNil(enterprise.includedLimitCents)
-        XCTAssertFalse(enterprise.appliesIndividualCreditFloors)
+        XCTAssertNil(summary.includedLimitCents)
+        XCTAssertNil(summary.includedRemainingCents)
+        XCTAssertNil(summary.otherModelsUsedCents)
+        XCTAssertNil(summary.otherModelsRemainingCents)
     }
 
-    func testDisplayMessagePercentFallback() {
+    func testOverallMonetaryValuesAreUsedExactlyAsReported() {
+        let summary = UsageSummary(
+            billingCycleStart: nil,
+            billingCycleEnd: nil,
+            membershipType: "enterprise",
+            limitType: "team",
+            isUnlimited: false,
+            autoModelSelectedDisplayMessage: nil,
+            namedModelSelectedDisplayMessage: nil,
+            individualUsage: IndividualUsage(
+                plan: nil,
+                onDemand: nil,
+                overall: OverallUsage(enabled: true, used: 12_345, limit: 50_000, remaining: 37_655)
+            ),
+            teamUsage: nil
+        )
+
+        XCTAssertEqual(summary.includedUsedCents, 12_345)
+        XCTAssertEqual(summary.includedLimitCents, 50_000)
+        XCTAssertEqual(summary.includedRemainingCents, 37_655)
+    }
+
+    func testDisplayMessagePercentIsNotParsedAsStructuredUsage() {
         let summary = UsageSummary(
             billingCycleStart: nil,
             billingCycleEnd: nil,
@@ -108,8 +134,30 @@ final class UsageResolutionTests: XCTestCase {
             teamUsage: nil
         )
 
-        XCTAssertEqual(summary.cursorModelsPercentUsed, 8.5)
-        XCTAssertEqual(summary.otherModelsPercentUsed, 42)
+        XCTAssertNil(summary.cursorModelsPercentUsed)
+        XCTAssertNil(summary.otherModelsPercentUsed)
+    }
+
+    @MainActor
+    func testMenuBarDoesNotSubstituteCategoryPercentForBlendedPercent() {
+        let summary = makeSummary(
+            membership: "pro",
+            plan: PlanUsage(
+                enabled: true,
+                used: 10_000,
+                limit: 40_000,
+                remaining: 30_000,
+                breakdown: nil,
+                autoPercentUsed: 25,
+                apiPercentUsed: 10,
+                totalPercentUsed: nil
+            )
+        )
+
+        XCTAssertEqual(
+            UsageStore.menuBarLabel(summary: summary, isLoading: false, errorMessage: nil),
+            "!"
+        )
     }
 
     @MainActor

@@ -41,7 +41,6 @@ struct OnDemandUsage: Decodable, Sendable {
     let remaining: Int?
 
     var isEnabled: Bool { enabled ?? false }
-    var usedCents: Int { used ?? 0 }
 }
 
 /// Spend on token-based Enterprise contracts that omit `plan`.

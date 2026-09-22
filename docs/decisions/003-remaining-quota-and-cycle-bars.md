@@ -20,5 +20,9 @@ spend plan the API does not provide.
 
 Used percentages stay in memory only as inputs to remaining calculations.
 Missing cycle timestamps hide reset progress instead of assuming a 30-day
-month. Menu-bar agent counts, overspend badges, and gauge icon styles are no
-longer part of the status item.
+month. Monetary values come only from their matching structured API fields:
+`overall` for the included pool, `plan` for Other Models, and `onDemand` for
+on-demand usage. CursorBar does not infer limits from percentages, apply plan
+credit floors, parse percentages from display prose, or substitute one pool's
+percentage for the blended menu-bar value. Menu-bar agent counts, overspend
+badges, and gauge icon styles are no longer part of the status item.

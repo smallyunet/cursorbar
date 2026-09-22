@@ -66,8 +66,6 @@ final class UsageStore: ObservableObject {
             return "∞"
         }
         let used = summary?.includedPercentUsed
-            ?? summary?.cursorModelsPercentUsed
-            ?? summary?.otherModelsPercentUsed
         guard let remaining = UsageRemaining.percent(fromUsed: used) else {
             return isLoading ? "…" : "!"
         }
@@ -87,8 +85,7 @@ final class UsageStore: ObservableObject {
         summary?.includedUsedCents
     }
 
-    /// Included pool size: `overall.limit` when present, otherwise used / (percent / 100).
-    /// Individual plans floor to $600; Enterprise / team never use that floor.
+    /// Included pool size exactly as reported by `overall.limit`.
     var includedLimitCreditsCents: Int? {
         summary?.includedLimitCents
     }
@@ -97,9 +94,9 @@ final class UsageStore: ObservableObject {
         summary?.includedPercentUsed
     }
 
-    /// Menu-bar quota: blended included % when present, otherwise the first pool %.
+    /// Menu-bar quota uses only the API's blended included percentage.
     var quotaPercentUsed: Double? {
-        includedPercentUsed ?? cursorModelsPercentUsed ?? otherModelsPercentUsed
+        includedPercentUsed
     }
 
     var quotaPercentRemaining: Double? {
@@ -140,17 +137,20 @@ final class UsageStore: ObservableObject {
         summary?.otherModelsUsedCents
     }
 
+    var otherModelsRemainingCreditsCents: Int? {
+        summary?.otherModelsRemainingCents
+    }
+
     var includedRemainingCreditsCents: Int? {
-        guard let includedLimitCreditsCents, let includedUsedCreditsCents else { return nil }
-        return max(includedLimitCreditsCents - includedUsedCreditsCents, 0)
+        summary?.includedRemainingCents
     }
 
     var onDemandEnabled: Bool {
         summary?.resolvedOnDemand?.isEnabled ?? false
     }
 
-    var onDemandUsedCents: Int {
-        summary?.resolvedOnDemand?.usedCents ?? 0
+    var onDemandUsedCents: Int? {
+        summary?.resolvedOnDemand?.used
     }
 
     var onDemandLimitCents: Int? {
@@ -162,18 +162,19 @@ final class UsageStore: ObservableObject {
     }
 
     /// Usage beyond the included credit pool.
-    var includedOverageCents: Int {
-        guard let used = includedUsedCreditsCents, let limit = includedLimitCreditsCents else { return 0 }
+    var includedOverageCents: Int? {
+        guard let used = includedUsedCreditsCents, let limit = includedLimitCreditsCents else { return nil }
         return max(used - limit, 0)
     }
 
-    /// Included overage plus any on-demand charges, even if on-demand is now disabled.
-    var overspendCents: Int {
-        includedOverageCents + onDemandUsedCents
+    /// Exact total only when both included and on-demand components are known.
+    var overspendCents: Int? {
+        guard let includedOverageCents, let onDemandUsedCents else { return nil }
+        return includedOverageCents + onDemandUsedCents
     }
 
     var hasOverspend: Bool {
-        overspendCents > 0
+        (includedOverageCents ?? 0) > 0 || (onDemandUsedCents ?? 0) > 0
     }
 
     var billingCycleEndDate: Date? {
