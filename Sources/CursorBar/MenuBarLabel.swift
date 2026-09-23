@@ -6,7 +6,8 @@ enum MenuBarText {
 }
 
 enum MenuBarQuotaIcon {
-    static let size: CGFloat = 16
+    /// Visible size of Codex Notch's `chart.pie.fill` status symbol.
+    static let size: CGFloat = 13
 
     /// Original single quota icon: a pale circle, white-tinted on a dark menu bar.
     static func usesWhiteTrack(isDark: Bool) -> Bool {

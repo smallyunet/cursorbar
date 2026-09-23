@@ -26,7 +26,7 @@ final class CoreBehaviorTests: XCTestCase {
     }
 
     func testMenuBarUsesOriginalQuotaIcon() {
-        XCTAssertEqual(MenuBarQuotaIcon.size, 16)
+        XCTAssertEqual(MenuBarQuotaIcon.size, 13)
         XCTAssertTrue(MenuBarQuotaIcon.usesWhiteTrack(isDark: true))
         XCTAssertFalse(MenuBarQuotaIcon.usesWhiteTrack(isDark: false))
         XCTAssertTrue(MenuBarQuotaIcon.usesWhiteFill())
