@@ -24,5 +24,6 @@ month. Monetary values come only from their matching structured API fields:
 `overall` for the included pool, `plan` for Other Models, and `onDemand` for
 on-demand usage. CursorBar does not infer limits from percentages, apply plan
 credit floors, parse percentages from display prose, or substitute one pool's
-percentage for the blended menu-bar value. Menu-bar agent counts, overspend
-badges, and gauge icon styles are no longer part of the status item.
+percentage for the blended menu-bar value. Menu-bar agent counts and overspend
+badges are no longer part of the status item. The status item uses the original
+quota pill, with a white label on a dark menu bar.

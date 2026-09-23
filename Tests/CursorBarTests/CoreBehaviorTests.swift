@@ -25,8 +25,18 @@ final class CoreBehaviorTests: XCTestCase {
         XCTAssertThrowsError(try TokenProvider.extractUserID(from: "invalid"))
     }
 
-    func testMenuBarShowsRemainingQuotaSymbol() {
-        XCTAssertEqual(MenuBarText.quotaSymbol, "chart.pie.fill")
+    func testMenuBarUsesOriginalQuotaPill() {
+        XCTAssertEqual(MenuBarQuotaIcon.width, 38)
+        XCTAssertEqual(MenuBarQuotaIcon.height, 16)
+        XCTAssertEqual(MenuBarQuotaIcon.cornerRadius, 4)
+        XCTAssertTrue(MenuBarQuotaIcon.usesWhiteLabel(isDark: true))
+        XCTAssertFalse(MenuBarQuotaIcon.usesWhiteLabel(isDark: false))
+        XCTAssertTrue(MenuBarChrome.prefersLightGaugeText(chromeIsDark: true, appIsDark: false))
+        XCTAssertFalse(MenuBarChrome.prefersLightGaugeText(chromeIsDark: false, appIsDark: true))
+        XCTAssertTrue(MenuBarChrome.looksLikeStatusBarWindow(className: "NSStatusBarWindow"))
+        XCTAssertFalse(MenuBarChrome.looksLikeStatusBarWindow(className: "NSMenuBarWindow"))
+        XCTAssertTrue(MenuBarChrome.isDark(appearanceName: "NSAppearanceNameDarkAqua"))
+        XCTAssertFalse(MenuBarChrome.isDark(appearanceName: "NSAppearanceNameAqua"))
         XCTAssertEqual(MenuBarText.fontSize, 12)
         XCTAssertEqual(MenuChrome.rowFontSize, 13)
         XCTAssertEqual(MenuChrome.detailFontSize, 11)
