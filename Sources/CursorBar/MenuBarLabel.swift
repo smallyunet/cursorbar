@@ -6,21 +6,15 @@ enum MenuBarText {
 }
 
 enum MenuBarQuotaIcon {
-    static let width: CGFloat = 38
-    static let height: CGFloat = 16
-    static let cornerRadius: CGFloat = 4
+    static let size: CGFloat = 16
 
-    /// Original quota pill: white label on a dark menu bar, dark label on a light one.
-    static func usesWhiteLabel(isDark: Bool) -> Bool {
+    /// Original single quota icon: a pale circle, white-tinted on a dark menu bar.
+    static func usesWhiteTrack(isDark: Bool) -> Bool {
         isDark
     }
 
-    static func labelColor(isDark: Bool) -> Color {
-        usesWhiteLabel(isDark: isDark) ? .white : .black
-    }
-
     static func trackColor(isDark: Bool) -> Color {
-        isDark ? Color.white.opacity(0.2) : Color.black.opacity(0.12)
+        usesWhiteTrack(isDark: isDark) ? Color.white.opacity(0.2) : Color.black.opacity(0.12)
     }
 
     static func fillColor(usedPercent: Double?) -> Color {
@@ -31,11 +25,10 @@ enum MenuBarQuotaIcon {
     }
 
     @MainActor
-    static func image(remainingPercent: Double?, usedPercent: Double?, title: String, isDark: Bool) -> NSImage? {
-        let content = MenuBarQuotaPill(
+    static func image(remainingPercent: Double?, usedPercent: Double?, isDark: Bool) -> NSImage? {
+        let content = MenuBarQuotaMark(
             remainingPercent: remainingPercent,
             usedPercent: usedPercent,
-            title: title,
             isDark: isDark
         )
         let renderer = ImageRenderer(content: content)
@@ -51,23 +44,23 @@ struct MenuBarLabel: View {
     @StateObject private var chrome = MenuBarChromeMonitor()
 
     var body: some View {
-        if let image = renderedImage {
-            Image(nsImage: image)
-                .renderingMode(.original)
-                .accessibilityLabel(accessibilitySummary)
-        } else {
+        HStack(spacing: 2) {
+            if let image = iconImage {
+                Image(nsImage: image)
+                    .renderingMode(.original)
+            }
             Text(store.menuBarLabel)
-                .font(.system(size: MenuBarText.fontSize, weight: .medium).monospacedDigit())
                 .monospacedDigit()
-                .accessibilityLabel(accessibilitySummary)
         }
+        .font(.system(size: MenuBarText.fontSize, weight: .medium).monospacedDigit())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
     }
 
-    private var renderedImage: NSImage? {
+    private var iconImage: NSImage? {
         MenuBarQuotaIcon.image(
             remainingPercent: store.quotaPercentRemaining,
             usedPercent: store.quotaPercentUsed,
-            title: store.menuBarLabel,
             isDark: chrome.isDark
         )
     }
@@ -86,39 +79,42 @@ struct MenuBarLabel: View {
     }
 }
 
-private struct MenuBarQuotaPill: View {
+private struct MenuBarQuotaMark: View {
     let remainingPercent: Double?
     let usedPercent: Double?
-    let title: String
     let isDark: Bool
 
     var body: some View {
         ZStack {
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: MenuBarQuotaIcon.cornerRadius)
-                        .fill(MenuBarQuotaIcon.trackColor(isDark: isDark))
-                    if let remainingPercent {
-                        RoundedRectangle(cornerRadius: MenuBarQuotaIcon.cornerRadius)
-                            .fill(MenuBarQuotaIcon.fillColor(usedPercent: usedPercent).opacity(0.85))
-                            .frame(
-                                width: max(
-                                    geometry.size.width * UsageRemaining.clamp(remainingPercent / 100),
-                                    remainingPercent > 0 ? 4 : 0
-                                )
-                            )
-                    }
-                }
+            Circle()
+                .fill(MenuBarQuotaIcon.trackColor(isDark: isDark))
+            if let remainingPercent {
+                PieSlice(fraction: remainingPercent / 100)
+                    .fill(MenuBarQuotaIcon.fillColor(usedPercent: usedPercent).opacity(0.9))
             }
-            Text(title)
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(MenuBarQuotaIcon.labelColor(isDark: isDark))
-                .shadow(
-                    color: isDark ? .black.opacity(0.4) : .white.opacity(0.4),
-                    radius: 0.5
-                )
         }
-        .frame(width: MenuBarQuotaIcon.width, height: MenuBarQuotaIcon.height)
-        .clipShape(RoundedRectangle(cornerRadius: MenuBarQuotaIcon.cornerRadius))
+        .frame(width: MenuBarQuotaIcon.size, height: MenuBarQuotaIcon.size)
+    }
+}
+
+private struct PieSlice: Shape {
+    var fraction: Double
+
+    func path(in rect: CGRect) -> Path {
+        let clamped = UsageRemaining.clamp(fraction)
+        guard clamped > 0 else { return Path() }
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        path.move(to: center)
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(-90 + 360 * clamped),
+            clockwise: false
+        )
+        path.closeSubpath()
+        return path
     }
 }

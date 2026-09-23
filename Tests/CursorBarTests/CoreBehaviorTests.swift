@@ -25,12 +25,10 @@ final class CoreBehaviorTests: XCTestCase {
         XCTAssertThrowsError(try TokenProvider.extractUserID(from: "invalid"))
     }
 
-    func testMenuBarUsesOriginalQuotaPill() {
-        XCTAssertEqual(MenuBarQuotaIcon.width, 38)
-        XCTAssertEqual(MenuBarQuotaIcon.height, 16)
-        XCTAssertEqual(MenuBarQuotaIcon.cornerRadius, 4)
-        XCTAssertTrue(MenuBarQuotaIcon.usesWhiteLabel(isDark: true))
-        XCTAssertFalse(MenuBarQuotaIcon.usesWhiteLabel(isDark: false))
+    func testMenuBarUsesOriginalQuotaIcon() {
+        XCTAssertEqual(MenuBarQuotaIcon.size, 16)
+        XCTAssertTrue(MenuBarQuotaIcon.usesWhiteTrack(isDark: true))
+        XCTAssertFalse(MenuBarQuotaIcon.usesWhiteTrack(isDark: false))
         XCTAssertTrue(MenuBarChrome.prefersLightGaugeText(chromeIsDark: true, appIsDark: false))
         XCTAssertFalse(MenuBarChrome.prefersLightGaugeText(chromeIsDark: false, appIsDark: true))
         XCTAssertTrue(MenuBarChrome.looksLikeStatusBarWindow(className: "NSStatusBarWindow"))
