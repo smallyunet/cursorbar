@@ -17,18 +17,15 @@ enum MenuBarQuotaIcon {
         usesWhiteTrack(isDark: isDark) ? Color.white.opacity(0.2) : Color.black.opacity(0.12)
     }
 
-    static func fillColor(usedPercent: Double?) -> Color {
-        guard let usedPercent else { return Color(nsColor: .secondaryLabelColor) }
-        if usedPercent >= 90 { return .red }
-        if usedPercent >= 70 { return .yellow }
-        return .green
-    }
+    /// The quota wedge stays white. Usage level does not recolor it.
+    static func usesWhiteFill() -> Bool { true }
+
+    static func fillColor() -> Color { .white }
 
     @MainActor
-    static func image(remainingPercent: Double?, usedPercent: Double?, isDark: Bool) -> NSImage? {
+    static func image(remainingPercent: Double?, isDark: Bool) -> NSImage? {
         let content = MenuBarQuotaMark(
             remainingPercent: remainingPercent,
-            usedPercent: usedPercent,
             isDark: isDark
         )
         let renderer = ImageRenderer(content: content)
@@ -60,7 +57,6 @@ struct MenuBarLabel: View {
     private var iconImage: NSImage? {
         MenuBarQuotaIcon.image(
             remainingPercent: store.quotaPercentRemaining,
-            usedPercent: store.quotaPercentUsed,
             isDark: chrome.isDark
         )
     }
@@ -81,7 +77,6 @@ struct MenuBarLabel: View {
 
 private struct MenuBarQuotaMark: View {
     let remainingPercent: Double?
-    let usedPercent: Double?
     let isDark: Bool
 
     var body: some View {
@@ -90,7 +85,7 @@ private struct MenuBarQuotaMark: View {
                 .fill(MenuBarQuotaIcon.trackColor(isDark: isDark))
             if let remainingPercent {
                 PieSlice(fraction: remainingPercent / 100)
-                    .fill(MenuBarQuotaIcon.fillColor(usedPercent: usedPercent).opacity(0.9))
+                    .fill(MenuBarQuotaIcon.fillColor())
             }
         }
         .frame(width: MenuBarQuotaIcon.size, height: MenuBarQuotaIcon.size)

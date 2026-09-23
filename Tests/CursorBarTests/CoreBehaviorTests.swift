@@ -29,6 +29,7 @@ final class CoreBehaviorTests: XCTestCase {
         XCTAssertEqual(MenuBarQuotaIcon.size, 16)
         XCTAssertTrue(MenuBarQuotaIcon.usesWhiteTrack(isDark: true))
         XCTAssertFalse(MenuBarQuotaIcon.usesWhiteTrack(isDark: false))
+        XCTAssertTrue(MenuBarQuotaIcon.usesWhiteFill())
         XCTAssertTrue(MenuBarChrome.prefersLightGaugeText(chromeIsDark: true, appIsDark: false))
         XCTAssertFalse(MenuBarChrome.prefersLightGaugeText(chromeIsDark: false, appIsDark: true))
         XCTAssertTrue(MenuBarChrome.looksLikeStatusBarWindow(className: "NSStatusBarWindow"))
